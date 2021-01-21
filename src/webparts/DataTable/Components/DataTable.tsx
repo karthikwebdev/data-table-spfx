@@ -1,5 +1,7 @@
 import React, { ReactNode, useEffect, useState,useRef } from 'react';
 import { makeStyles } from '@material-ui/core/styles';
+import { SPHttpClient,SPHttpClientResponse } from '@microsoft/sp-http'
+import { InputBase } from '@material-ui/core';
 import Paper from '@material-ui/core/Paper';
 import Table from '@material-ui/core/Table';
 import TableBody from '@material-ui/core/TableBody';
@@ -17,13 +19,14 @@ import ArrowRightIcon from '@material-ui/icons/ArrowRight';
 import equal from "fast-deep-equal";
 import makeNestedObject from './nestedObject';
 import GroupData from './GroupData';
-import CsvDownload from 'react-json-to-csv';
+import { CSVLink } from "react-csv";
 import Menu from '@material-ui/core/Menu';
 import MoreVertIcon from '@material-ui/icons/MoreVert'
 import ReactToPrint from 'react-to-print';
-import pnp, { Item, Web } from "sp-pnp-js";
-import { UrlQueryParameterCollection } from '@microsoft/sp-core-library';
-
+import { Web } from "sp-pnp-js";
+import exportFromJSON from 'export-from-json';
+import "./style.css";
+import moment from 'moment';
 const { jsPDF } = require('jspdf');
 require('jspdf-autotable');
 
@@ -37,7 +40,8 @@ interface Column {
     maxWidth?:number,
     isNumeric?:boolean,
     secondParameter?:any,
-    render?:(value: string | number,secondParameter?:any) => ReactNode
+    render?:(value: string | number,secondParameter?:any) => ReactNode,
+    isFixedWidth?:boolean
 }
 
 interface RowData {
@@ -49,6 +53,7 @@ interface RowData {
     status: string,
     address: string,
     date: string,
+    user:string
 }
 
 const searchByColumn = (rows:any, searchObject:any) => {
@@ -67,8 +72,8 @@ const searchByColumn = (rows:any, searchObject:any) => {
 };
 
 
-function Row(props: { row: RowData, columns: Column[], expandAll: boolean }) {
-    const { row,columns,expandAll } = props;
+function Row(props: { row: RowData, columns: Column[], expandAll: boolean,index:number }) {
+    const { row,columns,expandAll,index } = props;
     const [open, setOpen] = React.useState(false);
     const { width } = useWindowDimensions();
 
@@ -79,20 +84,29 @@ function Row(props: { row: RowData, columns: Column[], expandAll: boolean }) {
     return (
         <React.Fragment>
             <TableRow hover role="checkbox" tabIndex={-1} key={row.orderId}>
-                <TableCell>
+                <TableCell
+                    style={{
+                        border: "1px solid #dddddd",
+                        width:"40px"
+                    }}  
+                >
                     {
-                        columns.length*200 > width ? (
+                        columns.length*120 > width ? (
                             <IconButton aria-label="expand row" size="small" onClick={() => setOpen(!open)}>
                                 {open ? <ArrowDropDownIcon /> : <ArrowRightIcon />}
                             </IconButton>
-                        ) : ""
+                        ) : (index+1)
                     }
                 </TableCell>
                 {columns.map((column,i) => {
                     const value = row[column.id];
                     return (
-                        (i+1)*200 <width ?
-                        <TableCell key={column.id} align={column.align}>
+                        (i+2)*120 < width ?
+                        <TableCell key={column.id} align={column.align}
+                            style={{
+                                border: "1px solid #dddddd",
+                            }}
+                        >
                             {
                                     !!column.render ? column.render(value, column.secondParameter ? column.secondParameter : undefined) : value
                             }
@@ -100,7 +114,7 @@ function Row(props: { row: RowData, columns: Column[], expandAll: boolean }) {
                     );
                 })}
             </TableRow>
-            <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={Math.floor((columns.length/2) +1)}>
+            <TableCell style={{ paddingBottom: 0, paddingTop: 0, }} colSpan={3}>
                 <Collapse in={open} timeout="auto" unmountOnExit>
                     <Box>
                         <Table size="small" aria-label="purchases" >                 
@@ -108,7 +122,7 @@ function Row(props: { row: RowData, columns: Column[], expandAll: boolean }) {
                                     {columns.map((column,i) => {
                                         const value = row[column.id];
                                         return (
-                                            (i+1)*200 >= width ? (
+                                            (i+2)*120 >= width ? (
                                                 <TableRow key={column.id} >
                                                     <TableCell>
                                                         {column.label}
@@ -138,29 +152,22 @@ const doesSearchValueExists = (row:RowData, searchValue:string) => {
 }
 
 export default function GroupByTable(props:any) {
-    const { width } = useWindowDimensions();
     const [rows, setRows] = useState<RowData[]>([]);
     const [columns, setColumns] = useState<Column[]>([
         { id: 'orderId', label: 'OrderId' },
         { id: 'name', label: 'Name', },
-        { id: 'amount', label: 'Amount', isNumeric: true, render: (value) => <span style={{ color: "#009BE5" }}>US${value} </span> },
+        { id: 'amount', label: 'Amount', render: (value) => <span style={{ color: "#009BE5" }}>US${value} </span> },
         {
             id: 'date',
             label: 'Date',
-            align: 'right',
+            render: (value) => moment(value).format("MM/DD/YYYY")
         },
         {
             id: "address",
             label: 'Address',
             minWidth: 50,
             maxWidth: 100,
-            align: 'left',
             render: (value) => typeof value === "string" && value.length > 40 ? <TruncatedText text={value} /> : value
-        },
-        {
-            id: "country",
-            label: 'Country',
-            align: 'left',
         },
         {
             id: "status",
@@ -193,6 +200,11 @@ export default function GroupByTable(props:any) {
                 {value}
             </span>)
         },
+        {
+            id: "user",
+            label: 'Person Modified',
+            align: 'center',
+        },
     ])
     const [rowsAfterFiltered, setRowsAfterFiltered] = useState<RowData[]>([]);
     const [rowsAfterGrouped, setRowsAfterGrouped] = useState<RowData[]>([]);
@@ -200,7 +212,7 @@ export default function GroupByTable(props:any) {
     const [groupByHeaders, setGroupByHeaders] = useState<Column[]>([]);
     const [isGroupingEnabled, setIsGroupingEnabled] = useState<boolean>(false);
     const [page, setPage] = useState(1);
-    const [rowsPerPage, setRowsPerPage] = useState(10);
+    const [rowsPerPage, setRowsPerPage] = useState(50);
     const [expandAll, setExpandAll] = useState(false);
     const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
     const [searchObject, setSearchObject] = useState<any>({
@@ -212,15 +224,25 @@ export default function GroupByTable(props:any) {
         status: "",
         address: "",
         date: "",
+        user:""
     });
     const tableRef = useRef(null)
+    const { width } = useWindowDimensions();
+    const [displaySearchFields, setDisplaySearchFields] = useState(true);
 
     const exportPDF = (rows: RowData[]) => {
         if (jsPDF !== null) {
+            let columnsArr = columns.map(column => column.id);
             let content = {
                 startY: 20,
-                head: [columns.map(column => column.id)],
-                body: rows.map(row => Object.values(row))
+                head: [columnsArr],
+                body: rows.map(row => {
+                    let arrToReturn = []
+                    columnsArr.forEach(head => {
+                        arrToReturn.push(row[head])
+                    })
+                    return arrToReturn
+                })
             }
             const doc = new jsPDF("landscape", "pt", "A4");
             doc.setFontSize(15);
@@ -241,10 +263,45 @@ export default function GroupByTable(props:any) {
         setAnchorEl(event.currentTarget);
     };
 
+    const getUsers = async () => {
+        try {
+            let data = await props.context.spHttpClient.get(props.context.pageContext.web.absoluteUrl + "/_api/web/siteusers", SPHttpClient.configurations.v1)
+            return data.json()            
+        } catch (error) {
+            console.log(error);
+            return error
+        }
+    }
+
     useEffect(() => {
-        let web = new Web(props.context.pageContext.web.absoluteUrl);
-        // var queryParms = new UrlQueryParameterCollection(window.location.href);
-        // web.lists.getByTitle("Orders").items.top(100).get().
+        getUsers().then(data => {
+            if(data && data.value){
+                let json = {}
+                data.value.forEach(item => { 
+                    json[item.Id] = item.Title
+                 })
+                 console.log(data,json);
+                let web = new Web(props.context.pageContext.web.absoluteUrl);
+                web.lists.getByTitle("Orders").items.top(1000).get().then(data => {
+                    console.log(data);
+                    setRows(data.map(row => ({
+                        orderId: row.Title,
+                        name: row.name,
+                        amount: row.amount,
+                        type: row.type,
+                        status: row.status,
+                        address: row.address,
+                        date: row.date,
+                        user: json[row.person_x0020_modifiedId] || "Not Available"
+                    })));
+                }).catch(err => {
+                    console.log(err);
+                    setRows(fakeJsonGenerator(1000))
+                })
+            }else {
+                console.log(data);
+            }
+        })
     },[])
 
     useEffect(() => {
@@ -381,24 +438,34 @@ export default function GroupByTable(props:any) {
                         open={Boolean(anchorEl)}
                         onClose={() => setAnchorEl(null)}
                     >
-                        <CsvDownload data={rowsAfterFiltered} style={{
-                            backgroundColor: "white",
-                            border: "none",
-                            outline: "none",
-                            width: "100%",
-                            padding: 0,
-                            margin: 0
-                        }} >
-                            <MenuItem>
-                                Export CSV
-                        </MenuItem>
-                        </CsvDownload>
                         <MenuItem
                             onClick={() => {
                                 exportPDF(rowsAfterFiltered);
                             }}
                         >
-                            Export
+                            Export PDF
+                    </MenuItem>
+                    <CSVLink data={rowsAfterFiltered}
+                        target="_blank"
+                        filename={"export.csv"}
+                        style={{
+                            color:"black",
+                            textDecoration:"none"
+                        }}
+                    >
+                        <MenuItem>
+                            Export CSV
+                        </MenuItem>
+                    </CSVLink>
+                    <MenuItem
+                        onClick={() => exportFromJSON({ data: rowsAfterFiltered, fileName: "export", exportType: exportFromJSON.types.xls })}
+                    >
+                        Export Excel
+                    </MenuItem>
+                    <MenuItem
+                        onClick={() => exportFromJSON({ data: rowsAfterFiltered, fileName: "export", exportType: exportFromJSON.types.csv })}
+                    >
+                        Export CSV
                     </MenuItem>
                         <ReactToPrint
                             trigger={() => {
@@ -411,13 +478,20 @@ export default function GroupByTable(props:any) {
                             }}
                             content={() => tableRef.current}
                             pageStyle={"padding:20px"}
+                            onBeforeGetContent={() =>{
+                                setDisplaySearchFields(false)
+                                setTimeout(() => {
+                                    setDisplaySearchFields(true)
+                                }, 1000);
+                            }}
                         />
                     </Menu>
                 </div>
                 <Pagination
                     style={{
-                        display: width > 800 ? "none" : "",
-                        padding: "10px"
+                        display: width > 800 ? "none" : "block",
+                        padding: "10px",
+                        margin:"0 auto"
                     }}
                     page={page}
                     count={Math.ceil((rowsAfterFiltered.length) / rowsPerPage)}
@@ -425,49 +499,83 @@ export default function GroupByTable(props:any) {
                     variant="text"
                     color="primary"
                     shape="rounded"
-                    size={width < 400 ? "small" : "medium"}
-                />
-                <TableContainer >
-                    <Table aria-label="Data table" ref={tableRef}>
-                        <TableHead>
+                    siblingCount={1} 
+                    size={"small"}
+                />                
+                <TableContainer 
+                    style={{
+                        overflowY:"hidden",
+                    }}
+                >
+                <Table aria-label="Data table" ref={tableRef} style={{ borderCollapse:"collapse",tableLayout: "fixed" }} >
+                        <TableHead style={{
+                        border: "1px solid #dddddd"
+                        }} >
                             <TableRow >
-                                {
-                                    isGroupingEnabled ? "" : (
-                                        <TableCell
-                                            align={"left"}
-                                        >
-                                            #
-                                        </TableCell>
-                                    )
-                                }
-
+                                <TableCell
+                                    align={"left"}
+                                    className="fixedWidth"
+                                style={{
+                                    border: "1px solid #dddddd",
+                                    width:isGroupingEnabled ? groupByHeaders.length * 5 : "20px"
+                                }}
+                                >
+                                    #
+                                </TableCell>
                                 {columnsForMapping.map((column, i) => (
                                     <>
                                         {
-                                            (i + 1) * 200 < width ? (
+                                            (i + 2) * 120 < width || isGroupingEnabled ? (
+                                                <>
                                                 <TableCell
                                                     key={column.id}
                                                     align={"center"}
                                                     style={{
-                                                        minWidth: column.minWidth,
-                                                        maxWidth: column.maxWidth,
+                                                        border: "1px solid #dddddd",
+                                                        width: isGroupingEnabled ? "100px" : undefined
                                                     }}
                                                 >
                                                     {column.label}
-                                                    <TextField variant="outlined" margin="dense" value={searchObject[column.id]} onChange={(e) => {
-                                                        e.persist();
-                                                        if (e.target && e.target.value) {
-                                                            setSearchObject((prev: any) => ({ ...prev, [column.id]: e.target.value }))
-                                                        } else {
-                                                            setSearchObject((prev: any) => ({ ...prev, [column.id]: "" }))
+                                                    {
+                                                        displaySearchFields ? (
+                                                                <InputBase style={{
+                                                                    border: "1px solid #dddddd",
+                                                                    borderRadius: "5px"
+                                                                }} margin="dense" value={searchObject[column.id]} onChange={(e) => {
+                                                                    e.persist();
+                                                                    if (e.target && e.target.value) {
+                                                                        setSearchObject((prev: any) => ({ ...prev, [column.id]: e.target.value }))
+                                                                    } else {
+                                                                        setSearchObject((prev: any) => ({ ...prev, [column.id]: "" }))
+                                                                    }
+                                                                }} />
+                                                        ) : "" 
                                                         }
-                                                    }} />
+                                                        
                                                 </TableCell>
+                                                
+                                                </>
                                             ) : ""
                                         }
 
                                     </>
                                 ))}
+                                {
+                                    isGroupingEnabled ? (
+                                    <TableCell
+                                        align={"left"}
+                                        className="fixedWidth"
+                                        style={{
+                                            border: "1px solid #dddddd",
+                                            width: isGroupingEnabled ? groupByHeaders.length * 5 : "20px"
+                                        }}
+                                    >
+                                        #
+                                    </TableCell>
+                                    ) : ""
+                                }
+                                <>
+                                </>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -478,12 +586,12 @@ export default function GroupByTable(props:any) {
                                             {
                                                 rowsAfterFiltered.slice((page - 1) * rowsPerPage, page * rowsPerPage).map(
                                                     (row, i) =>
-                                                        <Row row={row} key={i} columns={columnsForMapping} expandAll={expandAll} />
+                                                        <Row row={row} key={i} index={i} columns={columnsForMapping} expandAll={expandAll} />
                                                 )
                                             }
                                         </>
                                     ) : (
-                                            <TableCell colSpan={columns.length + 1} >
+                                        <TableCell  colSpan={columns.length + 2} >
                                                 <GroupData data={rowsAfterGrouped} columns={columnsForMapping} index={0} isExpandAllEnabled={expandAll} />
                                             </TableCell>
                                         )

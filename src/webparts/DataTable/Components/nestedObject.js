@@ -15,7 +15,6 @@ const makeNestedObject = (headers, index, rows) => {
         index + 1,
         objectToReturn[key].map((obj) => ({
           ...obj,
-          [selectedHeader]: undefined,
         }))
       );
     });

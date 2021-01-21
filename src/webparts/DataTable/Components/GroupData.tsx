@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { Accordion, AccordionDetails, AccordionSummary, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@material-ui/core'
+import { Accordion, AccordionDetails, AccordionSummary, Collapse, IconButton, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@material-ui/core'
 import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
+import ArrowRightIcon from '@material-ui/icons/ArrowRight';
+import ArrowDropDownIcon from '@material-ui/icons/ArrowDropDown';
+
 
 interface Props {
     data:any,
@@ -26,24 +29,76 @@ const RenderAccordian = (props:RenderAccordianProps) => {
     }, [isExpandAllEnabled])
 
     return (
-        <Accordion expanded={openAccordian} onChange={() => setOpenAccordian(prev => !prev)} >
-            <AccordionSummary
-                expandIcon={<ExpandMoreIcon />}
-                aria-controls={`Panel-header-${item}`}
-                id={"panel-header" + item}
+        <>
+            {/* <Accordion expanded={openAccordian} onChange={() => setOpenAccordian(prev => !prev)} >
+                <AccordionSummary
+                    expandIcon={<ExpandMoreIcon />}
+                    aria-controls={`Panel-header-${item}`}
+                    id={"panel-header" + item}
+                >
+                    <Typography ><span style={{ color: "#009be5", fontWeight: 900 }} > {columns[index].label}: </span> {"  "}{!!columns[index].render ? columns[index].render(item, columns[index].secondParameter) : item}</Typography>
+                </AccordionSummary>
+                <AccordionDetails>
+                    <div
+                        style={{
+                            width: "100%"
+                        }}
+                    >
+                        <GroupData data={data[item]} columns={columns} index={index + 1} isExpandAllEnabled={isExpandAllEnabled} />
+                    </div>
+                </AccordionDetails>
+            </Accordion> */}
+            <div
+                style={{
+                    boxSizing:"border-box",
+                    border: "2px solid #aaaaaa",
+                    width:"99%",
+                    margin:"10px 0",
+                    backgroundColor: "#EDEDED",
+                    overflow:"hidden"
+                }}
             >
-                <Typography ><span style={{ color: "#009be5", fontWeight: 900 }} > {columns[index].label}: </span> {"  "}{!!columns[index].render ? columns[index].render(item, columns[index].secondParameter) : item}</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
                 <div
                     style={{
-                        width: "100%"
+                        width: "100%",
+                        display: "flex",
+                        flexDirection: "row",
+                        justifyContent: "flex-start",
+                        alignItems: "left",
+                        boxSizing: "border-box",
                     }}
                 >
-                    <GroupData data={data[item]} columns={columns} index={index + 1} isExpandAllEnabled={isExpandAllEnabled} />
+                    <IconButton size="small"
+                        style={{
+                            margin:"5px"
+                        }}
+                    onClick={() => setOpenAccordian(prev => !prev)} >
+                        {!openAccordian ? (
+                            <ArrowRightIcon />
+                        ) : (
+                                <ArrowDropDownIcon />
+                            )}
+                    </IconButton>
+                    <Typography 
+                        style={{
+                            margin: "5px"
+                        }}
+                    ><span style={{ color: "#009be5", fontWeight: 900 }} > {columns[index].label}: </span> {"  "}{!!columns[index].render ? columns[index].render(item, columns[index].secondParameter) : item}</Typography>
+
                 </div>
-            </AccordionDetails>
-        </Accordion>
+                <Collapse in={openAccordian} component="div" >
+                    <div
+                        style={{
+                            width: "100%",
+                            margin: "10px",
+                            boxSizing: "border-box"
+                        }}
+                    >
+                        <GroupData data={data[item]} columns={columns} index={index + 1} isExpandAllEnabled={isExpandAllEnabled} />
+                    </div>
+                </Collapse>
+            </div>
+        </>
     )
 }
 
@@ -52,13 +107,15 @@ function GroupData( props:Props ) {
 
     if(Array.isArray(data)){
         return (
-            <Table size="small" aria-label="a dense table">
+            <Table size="small" aria-label="a dense table" style={{tableLayout:"fixed",backgroundColor:"white"}} >
                 <TableHead>
                     <TableRow>
                         {
-                             columns.slice(index,columns.length).map((column:any) => {
+                             columns.map((column:any) => {
                                 return (
-                                    <TableCell> { column.label } </TableCell>
+                                    <TableCell
+                                        align="center"
+                                    > { column.label } </TableCell>
                                 )
                             })
                         }
@@ -68,8 +125,8 @@ function GroupData( props:Props ) {
                     {data.map((row) => (
                         <TableRow key={row.orderId}>
                             {
-                                columns.slice(index, columns.length).map((column:any) => (
-                                    <TableCell component="th" scope="row">
+                                columns.map((column:any) => (
+                                    <TableCell align="center" component="th" scope="row">
                                         {!!column.render ? column.render(row[column["id"]], column.secondParameter) : row[column["id"]]}
                                     </TableCell>
                                 ))
