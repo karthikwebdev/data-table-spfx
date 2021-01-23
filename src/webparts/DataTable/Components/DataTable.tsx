@@ -1,6 +1,6 @@
 import React, { ReactNode, useEffect, useState,useRef } from 'react';
 import { SPHttpClient } from '@microsoft/sp-http'
-import { InputBase } from '@material-ui/core';
+import { Avatar, InputBase } from '@material-ui/core';
 import Paper from '@material-ui/core/Paper';
 import Table from '@material-ui/core/Table';
 import TableBody from '@material-ui/core/TableBody';
@@ -27,29 +27,18 @@ import moment from 'moment';
 const { jsPDF } = require('jspdf');
 require('jspdf-autotable');
 
-
-
-interface Column {
-    id: keyof RowData;
-    label: string;
-    minWidth?:number,
-    maxWidth?:number,
-    isNumeric?:boolean,
-    secondParameter?:any,
-    render?:(value: string | number,secondParameter?:any) => ReactNode,
-    isFixedWidth?:boolean
+const renderMethods = {
+    "DATE": (value) => value ? moment(value).format("MM/DD/YYYY") : undefined,
+    "CURRENCY": (value) => value ? <span style={{ color: "#009BE5" }}>${value} </span> : undefined,
+    "USER": (value) => value ? <Chip avatar={<Avatar>{value.toString()[0]}</Avatar>} label={value} /> : "",
+    "TRUNCATED-TEXT": (value) => value ? typeof value === "string" && value.length > 40 ? <TruncatedText text={value} /> : value : undefined
 }
 
-interface RowData {
-    orderId: string,
-    name: string,
-    amount:number,
-    country: string,
-    type: string,
-    status: string,
-    address: string,
-    date: string,
-    user:string
+interface Column {
+    id: string;
+    label: string;
+    secondParameter?:any,
+    render?:(value: string | number,secondParameter?:any) => ReactNode,
 }
 
 const searchByColumn = (rows:any, searchObject:any) => {
@@ -68,7 +57,7 @@ const searchByColumn = (rows:any, searchObject:any) => {
 };
 
 
-function Row(props: { row: RowData, columns: Column[], expandAll: boolean,index:number }) {
+function Row(props: { row: any, columns: Column[], expandAll: boolean,index:number }) {
     const { row,columns,expandAll,index } = props;
     const [open, setOpen] = React.useState(false);
     const { width } = useWindowDimensions();
@@ -79,7 +68,7 @@ function Row(props: { row: RowData, columns: Column[], expandAll: boolean,index:
 
     return (
         <React.Fragment>
-            <TableRow hover role="checkbox" tabIndex={-1} key={row.orderId}>
+            <TableRow hover role="checkbox" tabIndex={-1}>
                 <TableCell
                     style={{
                         border: "1px solid #dddddd",
@@ -141,67 +130,19 @@ function Row(props: { row: RowData, columns: Column[], expandAll: boolean,index:
     );
 }
 
-const doesSearchValueExists = (row:RowData, searchValue:string) => {
+const doesSearchValueExists = (row:any, searchValue:string) => {
     let rowItems = Object.values(row).map(item => item.toString());
     const regex = new RegExp(searchValue.toString(), 'gi')
     return rowItems.some(e => !!(typeof e === "string" && e.match(regex)))       
 }
 
 export default function GroupByTable(props:any) {
-    const { isGroupingEnabled: isDisplayGroupingEnabled, isColumnSearchEnabled, list, selectedExportFunctionalities,selectedColumns } = props
-    const [rows, setRows] = useState<RowData[]>([]);
-    const [columns, setColumns] = useState<Column[]>([
-        { id: 'orderId', label: 'OrderId' },
-        { id: 'name', label: 'Name', },
-        { id: 'amount', label: 'Amount', render: (value) => <span style={{ color: "#009BE5" }}>${value} </span> },
-        {
-            id: 'date',
-            label: 'Date',
-            render: (value) => moment(value).format("MM/DD/YYYY")
-        },
-        {
-            id: "address",
-            label: 'Address',
-            minWidth: 50,
-            maxWidth: 100,
-            render: (value) => typeof value === "string" && value.length > 40 ? <TruncatedText text={value} /> : value
-        },
-        {
-            id: "status",
-            label: 'Status',
-            secondParameter: {
-                Danger: "#E21717",
-                Pending: "#207398",
-                Success: "#3DBE29",
-                Cancelled: "#758283",
-                Info: "#E07C24",
-            },
-            render: (value, colors) => <Chip label={value} style={{
-                backgroundColor: colors ? colors[value] : "",
-                color: "white"
-            }} size="small" />
-        },
-        {
-            id: "type",
-            label: 'Type',
-            secondParameter: {
-                "Online": "#3DBE29",
-                "Retail": "#E07C24",
-                "Direct": "#758283"
-            },
-            render: (value, colors) => (<span
-                style={{ color: colors[value] }}
-            >
-                {value}
-            </span>)
-        },
-        {
-            id: "user",
-            label: 'Person Modified',
-        },
-    ])
-    const [rowsAfterFiltered, setRowsAfterFiltered] = useState<RowData[]>([]);
-    const [rowsAfterGrouped, setRowsAfterGrouped] = useState<RowData[]>([]);
+    const { isGroupingEnabled: isDisplayGroupingEnabled, isColumnSearchEnabled, list, selectedExportFunctionalities, selectedColumns, listColumnsWithType } = props
+    const [rows, setRows] = useState<any[]>([]);
+    const [unfilteredRows, setUnfilteredRows] = useState<any[]>([]);
+    const [columns, setColumns] = useState<Column[]>([])
+    const [rowsAfterFiltered, setRowsAfterFiltered] = useState<any[]>([]);
+    const [rowsAfterGrouped, setRowsAfterGrouped] = useState<any[]>([]);
     const [columnsForMapping, setColumnsForMapping] = useState<Column[]>([]);
     const [groupByHeaders, setGroupByHeaders] = useState<Column[]>([]);
     const [isGroupingEnabled, setIsGroupingEnabled] = useState<boolean>(false);
@@ -209,23 +150,13 @@ export default function GroupByTable(props:any) {
     const [rowsPerPage, setRowsPerPage] = useState(50);
     const [expandAll, setExpandAll] = useState(false);
     const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
-    const [searchObject, setSearchObject] = useState<any>({
-        orderId: "",
-        name: "",
-        amount: "",
-        country: "",
-        type: "",
-        status: "",
-        address: "",
-        date: "",
-        user:""
-    });
+    const [searchObject, setSearchObject] = useState<any>({});
     const tableRef = useRef(null)
     const { width } = useWindowDimensions();
     const [displaySearchFields, setDisplaySearchFields] = useState(true);
     const [users, setUsers] = useState({});
 
-    const exportPDF = (rows: RowData[]) => {
+    const exportPDF = (rows: any[]) => {
         if (jsPDF !== null) {
             let columnsArr = columns.map(column => column.id);
             let content = {
@@ -285,6 +216,7 @@ export default function GroupByTable(props:any) {
     }
 
     useEffect(() => {
+        console.log(listColumnsWithType)
         getUsers().then(data => {
             if(data && data.value){
                 let json = {}
@@ -292,22 +224,6 @@ export default function GroupByTable(props:any) {
                     json[item.Id] = item.Title
                  })
                  setUsers(json)
-                let web = new Web(props.context.pageContext.web.absoluteUrl);
-                web.lists.getByTitle("Orders").items.top(1000).get().then(data => {
-                    console.log(data);
-                    setRows(data.map(row => ({
-                        orderId: row.Title,
-                        name: row.name,
-                        amount: row.amount,
-                        type: row.type,
-                        status: row.status,
-                        address: row.address,
-                        date: row.date,
-                        user: json[row.person_x0020_modifiedId] || "Not Available"
-                    })));
-                }).catch(err => {
-                    console.log(err);
-                })
             }else {
                 console.log(data);
             }
@@ -315,13 +231,47 @@ export default function GroupByTable(props:any) {
     },[])
 
     useEffect(() => {
-        getListItems(list)
+        let web = new Web(props.context.pageContext.web.absoluteUrl);
+        web.lists.getById(list).items.top(1000).get().then(data => {
+            console.log(data);
+            setUnfilteredRows(data);
+        }).catch(err => {
+            console.log(err);
+        })
     }, [list])
+
+    useEffect(() => {
+        setRows((prev) => {
+            return unfilteredRows.map(row => {
+                let objectToReturn = {}
+                selectedColumns.forEach(column => {
+                    if(!!row[column]){
+                        objectToReturn[column] = row[column]
+                    }
+                });
+                return objectToReturn
+            })
+        })
+        setColumns(prev => {
+            let finalColumnsArr = []
+            if (listColumnsWithType){
+                listColumnsWithType.forEach((column) => {
+                    if (selectedColumns.includes(column.id)) {
+                        finalColumnsArr.push({
+                            ...column,
+                            render: renderMethods[column.type]
+                        })
+                    }
+                })
+            }
+            return finalColumnsArr
+        })
+    }, [unfilteredRows, selectedColumns,listColumnsWithType])
 
     useEffect(() => {
         setPage(1)
         if (Object.values(searchObject).some(value => typeof value === "string" && !!value.trim())) {
-            let tempFilteredRows: RowData[] = searchByColumn(rows, searchObject)
+            let tempFilteredRows: any[] = searchByColumn(rows, searchObject)
             setRowsAfterFiltered(tempFilteredRows);
         } else {
             setRowsAfterFiltered(rows)
@@ -359,9 +309,6 @@ export default function GroupByTable(props:any) {
 
     return (
             <Paper>
-                {
-                    selectedColumns
-                }
                 {
                     isDisplayGroupingEnabled ? (
                     <div style={{ padding: "20px", display: "flex", flexDirection: width < 700 ? "column" : "row" }}>

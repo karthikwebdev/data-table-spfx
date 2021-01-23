@@ -4,7 +4,7 @@ define([], function () {
     BasicGroupName: "Data-Table Customizations",
     GroupingToggleLabel: "Toggle Grouping Visibility",
     ColumnSearchToggleLabel: "Toggle Column Search Visibility",
-    selectedExportFunctionalities: "Select Export Functionalities",
+    selectedExportFunctionalitiesLabel: "Select Export Functionalities",
     selectedColumnsLabel: "Select Columns to display in grid",
   };
 });

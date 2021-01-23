@@ -10,7 +10,7 @@ import { Web } from "sp-pnp-js";
 import { BaseClientSideWebPart } from '@microsoft/sp-webpart-base';
 import { PropertyFieldMultiSelect } from '@pnp/spfx-property-controls/lib/PropertyFieldMultiSelect';
 import { PropertyFieldListPicker, PropertyFieldListPickerOrderBy } from '@pnp/spfx-property-controls/lib/PropertyFieldListPicker';
-
+import moment from 'moment';
 import * as strings from 'ListItemsHooksWebPartStrings';
 import DataTable from './Components/DataTable';
 
@@ -21,6 +21,7 @@ export interface IListItemsHooksWebPartProps {
   name:string;
   selectedExportFunctionalities: string[];
   selectedColumns: string[];
+  listColumnsWithType:any[];
 }
 
 export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListItemsHooksWebPartProps> {
@@ -34,6 +35,7 @@ export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListIt
         list:this.properties.list,
         selectedExportFunctionalities:this.properties.selectedExportFunctionalities,
         selectedColumns:this.properties.selectedColumns,
+        listColumnsWithType:this.properties.listColumnsWithType,
         context: this.context,
       }
     );
@@ -46,6 +48,7 @@ export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListIt
       let web = new Web(this.context.pageContext.web.absoluteUrl);
       let columnsOfList = await web.lists.getById(newValue).fields.get()
       let finalColumnstoSelect = []
+      let allColumns = []
       columnsOfList.forEach(field => {
         if ((
               field.Title == "Modified" || 
@@ -59,8 +62,47 @@ export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListIt
           console.log(field.InternalName);
           finalColumnstoSelect.push({ key: field.InternalName, text:field.Title })
         }
+        if (field["odata.type"] === "SP.FieldDateTime") {
+          allColumns.push({
+            id: field.InternalName,
+            label: field.Title,
+            type: "DATE",
+          })
+        } else if (field["odata.type"] === "SP.FieldCurrency") {
+          allColumns.push({
+            id: field.InternalName,
+            label: field.Title,
+            type: "CURRENCY"
+          })
+        } else if (field["odata.type"] === "SP.FieldMultiLineText" || field["odata.type"] === "SP.FieldText") {
+          allColumns.push({
+            id: field.InternalName,
+            label: field.Title,
+            type: "TRUNCATED-TEXT"
+          })
+        }  
+        else if (field["odata.type"] === "SP.FieldMultiLineText" || field["TypeAsString"] === "Thumbnail") {
+          allColumns.push({
+            id: field.InternalName,
+            label: field.Title,
+            type: "IMAGE"
+          })
+        } else if (field["odata.type"] === "SP.FieldUser") {
+          allColumns.push({
+            id: field.InternalName,
+            label: field.Title,
+            type: "USER"
+          })
+        }
+        else {
+          allColumns.push({
+            id: field.InternalName,
+            label: field.Title,
+          })
+        }
       })
       this.listColumns = finalColumnstoSelect;
+      this.properties.listColumnsWithType = allColumns
       this.context.propertyPane.refresh();
       this.render();
     }
@@ -71,6 +113,7 @@ export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListIt
     let web = new Web(this.context.pageContext.web.absoluteUrl);
     let columnsOfList = await web.lists.getById(this.properties.list).fields.get()
     let finalColumnstoSelect = []
+    let allColumns = []
     columnsOfList.forEach(field => {
       if ((
         field.Title == "Modified" ||
@@ -83,15 +126,47 @@ export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListIt
         console.log(field);
         console.log(field.InternalName);
         finalColumnstoSelect.push({ key: field.InternalName, text: field.Title })
+        if (field["odata.type"] === "SP.FieldDateTime"){
+          allColumns.push({
+            id:field.InternalName,
+            label:field.Title,
+            type:"DATE",
+            render: (value) => moment(value).format("MM/DD/YYYY")
+          })
+        } else if (field["odata.type"] === "SP.FieldCurrency"){
+          allColumns.push({
+            id: field.InternalName,
+            label: field.Title,
+            type:"CURRENCY"
+          })
+        } else if (field["odata.type"] === "SP.FieldMultiLineText" || field["TypeAsString"] === "Thumbnail"){
+          allColumns.push({
+            id: field.InternalName,
+            label: field.Title,
+            type: "IMAGE"
+          })
+        } else if (field["odata.type"] === "SP.FieldUser"){
+          allColumns.push({
+            id: field.InternalName,
+            label: field.Title,
+            type: "USER"
+          })
+        }
+        else {
+          allColumns.push({
+            id: field.InternalName,
+            label: field.Title,
+          })
+        }
       }
     })
     this.listColumns = finalColumnstoSelect;
+    this.properties.listColumnsWithType = allColumns
     this.context.propertyPane.refresh();
     this.render();
   } catch (error) {
     console.log(error)
   }
-
   }
 
 
@@ -135,12 +210,6 @@ export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListIt
                   options: this.listColumns,
                   selectedKeys: this.properties.selectedColumns
                 }),
-                PropertyPaneToggle("isGroupingEnabled",{
-                  label:strings.GroupingToggleLabel
-                }),
-                PropertyPaneToggle("isColumnSearchEnabled", {
-                  label: strings.ColumnSearchToggleLabel
-                }),
                 PropertyFieldMultiSelect('selectedExportFunctionalities', {
                   key: 'selectedExportFunctionalities',
                   label: strings.selectedExportFunctionalitiesLabel,
@@ -151,6 +220,12 @@ export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListIt
                     { key: "Excel", text: "Excel" }
                   ],
                   selectedKeys: this.properties.selectedExportFunctionalities
+                }),
+                PropertyPaneToggle("isGroupingEnabled",{
+                  label:strings.GroupingToggleLabel
+                }),
+                PropertyPaneToggle("isColumnSearchEnabled", {
+                  label: strings.ColumnSearchToggleLabel
                 }),
               ]
             }

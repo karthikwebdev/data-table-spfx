@@ -39,7 +39,7 @@ function TruncatedText({ text }:Props) {
           textDecoration: "underlined",
           cursor: "pointer"
         }}
-      // onClick={() => setIsTextOpen(prev => !prev)}
+      onClick={() => setIsTextOpen(prev => !prev)}
       >
         ...Read {isTextOpen ? "Less" : "More"}
       </span>

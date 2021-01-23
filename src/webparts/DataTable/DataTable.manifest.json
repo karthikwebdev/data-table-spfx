@@ -18,7 +18,11 @@
       "isGroupingEnabled":false,
       "isColumnSearchEnabled":false,
       "selectedExportFunctionalities":[],
-      "selectedColumns":[]
+      "selectedColumns":[],
+      "listColumnsWithType":[{
+        "id":"Title",
+        "label":"Title"
+      }]
     }
   }]
 }
