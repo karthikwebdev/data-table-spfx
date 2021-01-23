@@ -1,7 +1,10 @@
 declare interface IListItemsHooksWebPartStrings {
   PropertyPaneDescription: string;
   BasicGroupName: string;
-  DescriptionFieldLabel: string;
+  GroupingToggleLabel:string;
+  ColumnSearchToggleLabel:string;
+  selectedExportFunctionalitiesLabel:string;
+  selectedColumns
 }
 
 declare module 'ListItemsHooksWebPartStrings' {

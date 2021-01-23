@@ -14,7 +14,11 @@
     "description": { "default": "Data Table with all the functionality" },
     "officeFabricIconFontName": "Page",
     "properties": {
-      "description": "Data Table"
+      "list":"",
+      "isGroupingEnabled":false,
+      "isColumnSearchEnabled":false,
+      "selectedExportFunctionalities":[],
+      "selectedColumns":[]
     }
   }]
 }

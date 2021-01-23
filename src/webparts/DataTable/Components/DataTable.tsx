@@ -1,6 +1,5 @@
 import React, { ReactNode, useEffect, useState,useRef } from 'react';
-import { makeStyles } from '@material-ui/core/styles';
-import { SPHttpClient,SPHttpClientResponse } from '@microsoft/sp-http'
+import { SPHttpClient } from '@microsoft/sp-http'
 import { InputBase } from '@material-ui/core';
 import Paper from '@material-ui/core/Paper';
 import Table from '@material-ui/core/Table';
@@ -9,7 +8,6 @@ import TableCell from '@material-ui/core/TableCell';
 import TableContainer from '@material-ui/core/TableContainer';
 import TableHead from '@material-ui/core/TableHead';
 import TableRow from '@material-ui/core/TableRow';
-import fakeJsonGenerator from '../utils/fakeJsonGenerator';
 import useWindowDimensions from '../utils/useWindowDimensions';
 import { Autocomplete, Pagination } from '@material-ui/lab';
 import TruncatedText from "./TruncatedText"
@@ -19,7 +17,6 @@ import ArrowRightIcon from '@material-ui/icons/ArrowRight';
 import equal from "fast-deep-equal";
 import makeNestedObject from './nestedObject';
 import GroupData from './GroupData';
-import { CSVLink } from "react-csv";
 import Menu from '@material-ui/core/Menu';
 import MoreVertIcon from '@material-ui/icons/MoreVert'
 import ReactToPrint from 'react-to-print';
@@ -35,7 +32,6 @@ require('jspdf-autotable');
 interface Column {
     id: keyof RowData;
     label: string;
-    align?: "right" | "left" | "center" | "inherit" | "justify" | undefined
     minWidth?:number,
     maxWidth?:number,
     isNumeric?:boolean,
@@ -91,7 +87,7 @@ function Row(props: { row: RowData, columns: Column[], expandAll: boolean,index:
                     }}  
                 >
                     {
-                        columns.length*120 > width ? (
+                        columns.length*200 > width ? (
                             <IconButton aria-label="expand row" size="small" onClick={() => setOpen(!open)}>
                                 {open ? <ArrowDropDownIcon /> : <ArrowRightIcon />}
                             </IconButton>
@@ -101,8 +97,8 @@ function Row(props: { row: RowData, columns: Column[], expandAll: boolean,index:
                 {columns.map((column,i) => {
                     const value = row[column.id];
                     return (
-                        (i+2)*120 < width ?
-                        <TableCell key={column.id} align={column.align}
+                        (i+1)*200 < width ?
+                        <TableCell key={column.id} align={"center"}
                             style={{
                                 border: "1px solid #dddddd",
                             }}
@@ -114,7 +110,7 @@ function Row(props: { row: RowData, columns: Column[], expandAll: boolean,index:
                     );
                 })}
             </TableRow>
-            <TableCell style={{ paddingBottom: 0, paddingTop: 0, }} colSpan={3}>
+            <TableCell style={{ paddingBottom: 0, paddingTop: 0, }} colSpan={width > 400 ? 3 : 2 }>
                 <Collapse in={open} timeout="auto" unmountOnExit>
                     <Box>
                         <Table size="small" aria-label="purchases" >                 
@@ -122,7 +118,7 @@ function Row(props: { row: RowData, columns: Column[], expandAll: boolean,index:
                                     {columns.map((column,i) => {
                                         const value = row[column.id];
                                         return (
-                                            (i+2)*120 >= width ? (
+                                            (i+1)*200 >= width ? (
                                                 <TableRow key={column.id} >
                                                     <TableCell>
                                                         {column.label}
@@ -152,11 +148,12 @@ const doesSearchValueExists = (row:RowData, searchValue:string) => {
 }
 
 export default function GroupByTable(props:any) {
+    const { isGroupingEnabled: isDisplayGroupingEnabled, isColumnSearchEnabled, list, selectedExportFunctionalities,selectedColumns } = props
     const [rows, setRows] = useState<RowData[]>([]);
     const [columns, setColumns] = useState<Column[]>([
         { id: 'orderId', label: 'OrderId' },
         { id: 'name', label: 'Name', },
-        { id: 'amount', label: 'Amount', render: (value) => <span style={{ color: "#009BE5" }}>US${value} </span> },
+        { id: 'amount', label: 'Amount', render: (value) => <span style={{ color: "#009BE5" }}>${value} </span> },
         {
             id: 'date',
             label: 'Date',
@@ -172,7 +169,6 @@ export default function GroupByTable(props:any) {
         {
             id: "status",
             label: 'Status',
-            align: 'center',
             secondParameter: {
                 Danger: "#E21717",
                 Pending: "#207398",
@@ -188,7 +184,6 @@ export default function GroupByTable(props:any) {
         {
             id: "type",
             label: 'Type',
-            align: 'center',
             secondParameter: {
                 "Online": "#3DBE29",
                 "Retail": "#E07C24",
@@ -203,7 +198,6 @@ export default function GroupByTable(props:any) {
         {
             id: "user",
             label: 'Person Modified',
-            align: 'center',
         },
     ])
     const [rowsAfterFiltered, setRowsAfterFiltered] = useState<RowData[]>([]);
@@ -229,6 +223,7 @@ export default function GroupByTable(props:any) {
     const tableRef = useRef(null)
     const { width } = useWindowDimensions();
     const [displaySearchFields, setDisplaySearchFields] = useState(true);
+    const [users, setUsers] = useState({});
 
     const exportPDF = (rows: RowData[]) => {
         if (jsPDF !== null) {
@@ -273,6 +268,22 @@ export default function GroupByTable(props:any) {
         }
     }
 
+    const getListItems = async (list) => {
+        try {
+            let web = new Web(props.context.pageContext.web.absoluteUrl);
+            let dataList = await web.lists.getById(list).fields.get()
+            dataList.forEach(field => {
+                if (!field.Hidden && field["odata.type"] != "SP.FieldComputed" && !field.ReadOnlyField) {
+                    console.log(field);
+                    console.log(field.InternalName);
+                } 
+            });
+        } catch (error) {
+            console.log(error);
+            return error 
+        }
+    }
+
     useEffect(() => {
         getUsers().then(data => {
             if(data && data.value){
@@ -280,7 +291,7 @@ export default function GroupByTable(props:any) {
                 data.value.forEach(item => { 
                     json[item.Id] = item.Title
                  })
-                 console.log(data,json);
+                 setUsers(json)
                 let web = new Web(props.context.pageContext.web.absoluteUrl);
                 web.lists.getByTitle("Orders").items.top(1000).get().then(data => {
                     console.log(data);
@@ -296,13 +307,16 @@ export default function GroupByTable(props:any) {
                     })));
                 }).catch(err => {
                     console.log(err);
-                    setRows(fakeJsonGenerator(1000))
                 })
             }else {
                 console.log(data);
             }
         })
     },[])
+
+    useEffect(() => {
+        getListItems(list)
+    }, [list])
 
     useEffect(() => {
         setPage(1)
@@ -345,41 +359,48 @@ export default function GroupByTable(props:any) {
 
     return (
             <Paper>
-                <div style={{ padding: "20px", display: "flex", flexDirection: width < 700 ? "column" : "row" }}>
-                    <Autocomplete
-                        multiple
-                        id="headers-autocomplete"
-                        style={{
-                            width: "100%",
-                        }}
-                        value={groupByHeaders}
-                        onChange={(e, v: Column[]) => {
-                            setGroupByHeaders(v);
-                        }}
-                        limitTags={3}
-                        options={columns}
-                        getOptionLabel={(option: Column) => option.label}
-                        filterSelectedOptions
-                        renderInput={(params) => (
-                            <TextField
-                                {...params}
-                                variant="outlined"
-                                label="Group By Headers"
-                                placeholder="Select Header"
-                            />
-                        )}
-                        renderTags={(value, getTagProps) =>
-                            value.map((option, index) => (
-                                <Chip
+                {
+                    selectedColumns
+                }
+                {
+                    isDisplayGroupingEnabled ? (
+                    <div style={{ padding: "20px", display: "flex", flexDirection: width < 700 ? "column" : "row" }}>
+                        <Autocomplete
+                            multiple
+                            id="headers-autocomplete"
+                            style={{
+                                width: "100%",
+                            }}
+                            value={groupByHeaders}
+                            onChange={(e, v: Column[]) => {
+                                setGroupByHeaders(v);
+                            }}
+                            limitTags={3}
+                            options={columns}
+                            getOptionLabel={(option: Column) => option.label}
+                            filterSelectedOptions
+                            renderInput={(params) => (
+                                <TextField
+                                    {...params}
                                     variant="outlined"
-                                    color="primary"
-                                    label={option.label}
-                                    {...getTagProps({ index })}
+                                    label="Group By Headers"
+                                    placeholder="Select Header"
                                 />
-                            ))
-                        }
-                    />
-                </div>
+                            )}
+                            renderTags={(value, getTagProps) =>
+                                value.map((option, index) => (
+                                    <Chip
+                                        variant="outlined"
+                                        color="primary"
+                                        label={option.label}
+                                        {...getTagProps({ index })}
+                                    />
+                                ))
+                            }
+                        />
+                    </div>
+                    ) : ""
+                }
                 <div
                     style={{
                         display: "flex",
@@ -423,6 +444,9 @@ export default function GroupByTable(props:any) {
                         color="primary"
                         shape="rounded"
                     />
+                    {
+                    selectedExportFunctionalities.length ? (
+                        <>
                     <IconButton
                         aria-label="more"
                         aria-controls="long-menu"
@@ -438,35 +462,37 @@ export default function GroupByTable(props:any) {
                         open={Boolean(anchorEl)}
                         onClose={() => setAnchorEl(null)}
                     >
-                        <MenuItem
-                            onClick={() => {
-                                exportPDF(rowsAfterFiltered);
-                            }}
-                        >
-                            Export PDF
-                    </MenuItem>
-                    <CSVLink data={rowsAfterFiltered}
-                        target="_blank"
-                        filename={"export.csv"}
-                        style={{
-                            color:"black",
-                            textDecoration:"none"
-                        }}
-                    >
-                        <MenuItem>
-                            Export CSV
-                        </MenuItem>
-                    </CSVLink>
-                    <MenuItem
-                        onClick={() => exportFromJSON({ data: rowsAfterFiltered, fileName: "export", exportType: exportFromJSON.types.xls })}
-                    >
-                        Export Excel
-                    </MenuItem>
-                    <MenuItem
-                        onClick={() => exportFromJSON({ data: rowsAfterFiltered, fileName: "export", exportType: exportFromJSON.types.csv })}
-                    >
-                        Export CSV
-                    </MenuItem>
+                    {
+                        selectedExportFunctionalities.includes("PDF") ? (
+                            <MenuItem
+                                onClick={() => {
+                                    exportPDF(rowsAfterFiltered);
+                                }}
+                            >
+                                Export PDF
+                            </MenuItem>
+                        ) : ""
+                    }
+                    {
+                        selectedExportFunctionalities.includes("Excel") ? (
+                            <MenuItem
+                                onClick={() => exportFromJSON({ data: rowsAfterFiltered, fileName: "export-excel", exportType: exportFromJSON.types.xls })}
+                            >
+                                Export Excel
+                            </MenuItem>
+                        ) : ""
+                    }
+                    {
+                        selectedExportFunctionalities.includes("CSV") ? (
+                            <MenuItem
+                                onClick={() => exportFromJSON({ data: rowsAfterFiltered, fileName: "export-csv", exportType: exportFromJSON.types.csv })}
+                            >
+                                Export CSV
+                            </MenuItem>
+                        ) : ""
+                    }
+                    {
+                    selectedExportFunctionalities.includes("Print") ? (
                         <ReactToPrint
                             trigger={() => {
                                 return (
@@ -478,14 +504,19 @@ export default function GroupByTable(props:any) {
                             }}
                             content={() => tableRef.current}
                             pageStyle={"padding:20px"}
-                            onBeforeGetContent={() =>{
+                            onBeforeGetContent={() => {
                                 setDisplaySearchFields(false)
                                 setTimeout(() => {
                                     setDisplaySearchFields(true)
                                 }, 1000);
                             }}
                         />
+                    ) : ""
+                    }
                     </Menu>
+                    </>
+                    ) : ""
+                    }
                 </div>
                 <Pagination
                     style={{
@@ -525,7 +556,7 @@ export default function GroupByTable(props:any) {
                                 {columnsForMapping.map((column, i) => (
                                     <>
                                         {
-                                            (i + 2) * 120 < width || isGroupingEnabled ? (
+                                            (i + 1) * 200 < width || isGroupingEnabled ? (
                                                 <>
                                                 <TableCell
                                                     key={column.id}
@@ -537,23 +568,21 @@ export default function GroupByTable(props:any) {
                                                 >
                                                     {column.label}
                                                     {
-                                                        displaySearchFields ? (
-                                                                <InputBase style={{
-                                                                    border: "1px solid #dddddd",
-                                                                    borderRadius: "5px"
-                                                                }} margin="dense" value={searchObject[column.id]} onChange={(e) => {
-                                                                    e.persist();
-                                                                    if (e.target && e.target.value) {
-                                                                        setSearchObject((prev: any) => ({ ...prev, [column.id]: e.target.value }))
-                                                                    } else {
-                                                                        setSearchObject((prev: any) => ({ ...prev, [column.id]: "" }))
-                                                                    }
-                                                                }} />
+                                                        displaySearchFields && isColumnSearchEnabled ? (
+                                                            <InputBase style={{
+                                                                border: "1px solid #dddddd",
+                                                                borderRadius: "5px"
+                                                            }} margin="dense" value={searchObject[column.id]} onChange={(e) => {
+                                                                e.persist();
+                                                                if (e.target && e.target.value) {
+                                                                    setSearchObject((prev: any) => ({ ...prev, [column.id]: e.target.value }))
+                                                                } else {
+                                                                    setSearchObject((prev: any) => ({ ...prev, [column.id]: "" }))
+                                                                }
+                                                            }} />
                                                         ) : "" 
-                                                        }
-                                                        
+                                                    }
                                                 </TableCell>
-                                                
                                                 </>
                                             ) : ""
                                         }
