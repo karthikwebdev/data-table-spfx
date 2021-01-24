@@ -5,9 +5,11 @@ import {
   IPropertyPaneConfiguration,
   IPropertyPaneDropdownOption,
   PropertyPaneToggle,
+  PropertyPaneDropdown,
 } from '@microsoft/sp-property-pane';
 import { Web } from "sp-pnp-js";
 import { BaseClientSideWebPart } from '@microsoft/sp-webpart-base';
+import { PropertyFieldColorPicker, PropertyFieldColorPickerStyle } from '@pnp/spfx-property-controls/lib/PropertyFieldColorPicker';
 import { PropertyFieldMultiSelect } from '@pnp/spfx-property-controls/lib/PropertyFieldMultiSelect';
 import { PropertyFieldListPicker, PropertyFieldListPickerOrderBy } from '@pnp/spfx-property-controls/lib/PropertyFieldListPicker';
 import moment from 'moment';
@@ -18,10 +20,14 @@ export interface IListItemsHooksWebPartProps {
   list: string;
   isGroupingEnabled:boolean;
   isColumnSearchEnabled:boolean;
+  isPagingEnabled:boolean;
   name:string;
   selectedExportFunctionalities: string[];
   selectedColumns: string[];
   listColumnsWithType:any[];
+  headerBackgroundColor:string;
+  headerTextColor:string;
+  pagingPosition:string;
 }
 
 export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListItemsHooksWebPartProps> {
@@ -31,11 +37,15 @@ export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListIt
       DataTable,
       {
         isGroupingEnabled:this.properties.isGroupingEnabled,
+        isPagingEnabled:this.properties.isPagingEnabled,
         isColumnSearchEnabled:this.properties.isColumnSearchEnabled,
         list:this.properties.list,
         selectedExportFunctionalities:this.properties.selectedExportFunctionalities,
         selectedColumns:this.properties.selectedColumns,
         listColumnsWithType:this.properties.listColumnsWithType,
+        headerBackgroundColor:this.properties.headerBackgroundColor,
+        headerTextColor:this.properties.headerTextColor,
+        pagingPosition:this.properties.pagingPosition,
         context: this.context,
       }
     );
@@ -45,7 +55,6 @@ export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListIt
 
   protected async onPropertyPaneFieldChanged(path,oldValue,newValue) {
     if(path === "list" && (oldValue !== newValue)){
-      console.log("API CALL")
       let web = new Web(this.context.pageContext.web.absoluteUrl);
       let columnsOfList = await web.lists.getById(newValue).fields.get()
       let finalColumnstoSelect = []
@@ -53,9 +62,7 @@ export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListIt
       columnsOfList.forEach(field => {
         if ((
               field.Title == "Modified" || 
-              field.Title == "Created" || 
-              field.Title == "Created By" || 
-              field.Title == "Modified By"
+              field.Title == "Created"
             ) || 
             (!field.Hidden && field["odata.type"] != "SP.FieldComputed" && !field.ReadOnlyField)
           ) {
@@ -72,20 +79,29 @@ export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListIt
               label: field.Title,
               type: "CURRENCY"
             })
-          } else if (field["odata.type"] === "SP.FieldMultiLineText" || field["odata.type"] === "SP.FieldText") {
+          } 
+          else if (field["odata.type"] === "SP.FieldUrl") {
+            allColumns.push({
+              id: field.InternalName,
+              label: field.Title,
+              type: "URL"
+            })
+          } 
+          else if (field["odata.type"] === "SP.FieldMultiLineText" && field["TypeAsString"] === "Thumbnail") {
+            allColumns.push({
+              id: field.InternalName,
+              label: field.Title,
+              type: "IMAGE"
+            })
+          }
+          else if (field["odata.type"] === "SP.FieldMultiLineText" || field["odata.type"] === "SP.FieldText") {
             allColumns.push({
               id: field.InternalName,
               label: field.Title,
               type: "TRUNCATED-TEXT"
             })
           }
-          else if (field["odata.type"] === "SP.FieldMultiLineText" || field["TypeAsString"] === "Thumbnail") {
-            allColumns.push({
-              id: field.InternalName,
-              label: field.Title,
-              type: "IMAGE"
-            })
-          } else if (field["odata.type"] === "SP.FieldUser") {
+           else if (field["odata.type"] === "SP.FieldUser") {
             allColumns.push({
               id: field.InternalName,
               label: field.Title,
@@ -117,55 +133,66 @@ export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListIt
     columnsOfList.forEach(field => {
       if ((
         field.Title == "Modified" ||
-        field.Title == "Created" ||
-        field.Title == "Created By" ||
-        field.Title == "Modified By"
+        field.Title == "Created"
       ) ||
         (!field.Hidden && field["odata.type"] != "SP.FieldComputed" && !field.ReadOnlyField)
       ) {
         finalColumnstoSelect.push({ key: field.InternalName, text: field.Title })
-        if (field["odata.type"] === "SP.FieldDateTime"){
-          allColumns.push({
-            id:field.InternalName,
-            label:field.Title,
-            type:"DATE",
-            render: (value) => moment(value).format("MM/DD/YYYY")
-          })
-        } else if (field["odata.type"] === "SP.FieldCurrency"){
+        if (field["odata.type"] === "SP.FieldDateTime") {
           allColumns.push({
             id: field.InternalName,
             label: field.Title,
-            type:"CURRENCY"
+            type: "DATE",
           })
-        } else if (field["odata.type"] === "SP.FieldMultiLineText" && field["TypeAsString"] === "Thumbnail"){
+        } else if (field["odata.type"] === "SP.FieldCurrency") {
+          allColumns.push({
+            id: field.InternalName,
+            label: field.Title,
+            type: "CURRENCY"
+          })
+        } else if (field["odata.type"] === "SP.Field" && field["TypeAsString"] === "Boolean") {
+        allColumns.push({
+          id: field.InternalName,
+          label: field.Title,
+          type: "BOOLEAN"
+        })
+      }
+        else if (field["odata.type"] === "SP.FieldUrl") {
+          allColumns.push({
+            id: field.InternalName,
+            label: field.Title,
+            type: "URL"
+          })
+        }
+        else if (field["odata.type"] === "SP.FieldMultiLineText" && field["TypeAsString"] === "Thumbnail") {
           allColumns.push({
             id: field.InternalName,
             label: field.Title,
             type: "IMAGE"
           })
-        } else if (field["odata.type"] === "SP.FieldUser"){
+        }
+        else if (field["odata.type"] === "SP.FieldMultiLineText" || field["odata.type"] === "SP.FieldText") {
+          allColumns.push({
+            id: field.InternalName,
+            label: field.Title,
+            type: "TRUNCATED-TEXT"
+          })
+        } else if (field["odata.type"] === "SP.FieldUser") {
           allColumns.push({
             id: field.InternalName,
             label: field.Title,
             type: "USER"
           })
         }
-        else if (field["odata.type"] === "SP.Field" && field["TypeAsString"] === "Boolean"){
-          allColumns.push({
-            id: field.InternalName,
-            label: field.Title,
-            type: "BOOLEAN"
-          })
-        }
         else {
           allColumns.push({
             id: field.InternalName,
             label: field.Title,
-            type:"NORMAL"
           })
         }
       }
     })
+
     this.listColumns = finalColumnstoSelect;
     this.properties.listColumnsWithType = allColumns
     this.context.propertyPane.refresh();
@@ -175,7 +202,6 @@ export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListIt
   }
   }
 
-
   protected onDispose(): void {
     ReactDom.unmountComponentAtNode(this.domElement);
   }
@@ -183,8 +209,6 @@ export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListIt
   protected get dataVersion(): Version {
     return Version.parse('1.0');
   }
-
-
 
   protected getPropertyPaneConfiguration(): IPropertyPaneConfiguration {
     return {
@@ -227,12 +251,61 @@ export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListIt
                   ],
                   selectedKeys: this.properties.selectedExportFunctionalities
                 }),
+                PropertyPaneDropdown("pagingPosition",{
+                  label:strings.pagingPositionLabel,
+                  options:[
+                    {
+                      key:"top-left",
+                      text:"Top Left"
+                    },
+                    {
+                      key: "top-right",
+                      text: "Top Right"
+                    },
+                    {
+                      key: "bottom-left",
+                      text: "Bottom Left"
+                    },
+                    {
+                      key: "bottom-right",
+                      text: "Bottom Right"
+                    }
+                  ],
+                  disabled:!this.properties.isPagingEnabled,
+                  selectedKey:this.properties.pagingPosition
+                }),
                 PropertyPaneToggle("isGroupingEnabled",{
                   label:strings.GroupingToggleLabel
                 }),
                 PropertyPaneToggle("isColumnSearchEnabled", {
                   label: strings.ColumnSearchToggleLabel
                 }),
+                PropertyPaneToggle("isPagingEnabled", {
+                  label: strings.PagingToggleLabel
+                }),
+                PropertyFieldColorPicker('headerBackgroundColor', {
+                  label: strings.headerBackgroundColorLabel,
+                  selectedColor: this.properties.headerBackgroundColor,
+                  onPropertyChange: this.onPropertyPaneFieldChanged,
+                  properties: this.properties,
+                  disabled: false,
+                  isHidden: false,
+                  alphaSliderHidden: false,
+                  style: PropertyFieldColorPickerStyle.Inline,
+                  iconName: 'Precipitation',
+                  key: 'headerBackgroundColorFieldId'
+                }),
+                PropertyFieldColorPicker('headerTextColor', {
+                  label: strings.headerTextColorLabel,
+                  selectedColor: this.properties.headerTextColor,
+                  onPropertyChange: this.onPropertyPaneFieldChanged,
+                  properties: this.properties,
+                  disabled: false,
+                  isHidden: false,
+                  alphaSliderHidden: false,
+                  style: PropertyFieldColorPickerStyle.Inline,
+                  key: 'headerBackgroundColorFieldId'
+                })
               ]
             }
           ]

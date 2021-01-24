@@ -17,6 +17,10 @@
       "list":"",
       "isGroupingEnabled":false,
       "isColumnSearchEnabled":false,
+      "isPagingEnabled":false,
+      "pagingPosition":"top-left",
+      "headerBackgroundColor":"#fff",
+      "headerTextColor":"#000",
       "selectedExportFunctionalities":[],
       "selectedColumns":[],
       "listColumnsWithType":[{

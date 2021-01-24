@@ -4,7 +4,10 @@ declare interface IListItemsHooksWebPartStrings {
   GroupingToggleLabel:string;
   ColumnSearchToggleLabel:string;
   selectedExportFunctionalitiesLabel:string;
-  selectedColumns
+  PagingToggleLabel:string;
+  headerBackgroundColorLabel:string;
+  headerTextColorLabel:string;
+  pagingPositionLabel:string;
 }
 
 declare module 'ListItemsHooksWebPartStrings' {

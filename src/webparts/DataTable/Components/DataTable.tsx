@@ -1,6 +1,6 @@
 import React, { ReactNode, useEffect, useState,useRef } from 'react';
 import { SPHttpClient } from '@microsoft/sp-http'
-import { Avatar, InputBase } from '@material-ui/core';
+import { Avatar, Card, CardContent, InputBase, Typography } from '@material-ui/core';
 import Paper from '@material-ui/core/Paper';
 import Table from '@material-ui/core/Table';
 import TableBody from '@material-ui/core/TableBody';
@@ -32,7 +32,7 @@ let isImageUrl:any = require("is-image-url");
 require('jspdf-autotable');
 
 const renderMethods = {
-    "DATE": (value) => value ? moment(value).format("MM/DD/YYYY hh:mm:ss") : undefined,
+    "DATE": (value) => value ? moment(value).format("MM/DD/YYYY hh:mm:ss a") : undefined,
     "CURRENCY": (value) => value ? <span style={{ color: "#009BE5" }}>${value} </span> : undefined,
     "USER": (value) => value ? <Chip avatar={<Avatar>{value.toString()[0]}</Avatar>} size="small" label={value} /> : "",
     "TRUNCATED-TEXT": (value) => value ? 
@@ -43,12 +43,10 @@ const renderMethods = {
                                         : value
                                 : undefined,
     "NORMAL": (value) => value ? isImageUrl(value) ? <Avatar src={value} /> : typeof value === "string" && value.length > 40 ? <TruncatedText text={value} /> : value : undefined,
-    "IMAGE": (value) => value 
-                            ? isImageUrl(value) 
-                                ? <Avatar src={value} style={{margin:"0 auto",textAlign:"center"}} /> 
-                                : <Avatar> <BrokenImageIcon/> </Avatar> 
-                            : "",
-    "BOOLEAN":(value) => value ? <DoneIcon /> : <ClearIcon />
+    "IMAGE": (value) => value  ? <Avatar src={value} style={{margin:"0 auto",textAlign:"center"}} /> 
+                                : <Avatar> <BrokenImageIcon/> </Avatar>,
+    "BOOLEAN":(value) => value ? <DoneIcon /> : <ClearIcon />,
+    "URL": (value) => isImageUrl(value) ? <Avatar src={value} style={{margin:"0 auto",textAlign:"center"}} /> : <a href={value} target="_blank" >Link</a>
 }
 
 interface Column {
@@ -74,8 +72,8 @@ const searchByColumn = (rows:any, searchObject:any) => {
 };
 
 
-function Row(props: { row: any, columns: Column[], expandAll: boolean,index:number }) {
-    const { row,columns,expandAll,index } = props;
+function Row(props: { row: any, columns: Column[], expandAll: boolean,index:number,rowsPerPage:number,page:number }) {
+    const { row,columns,expandAll,index,rowsPerPage,page } = props;
     const [open, setOpen] = React.useState(false);
     const { width } = useWindowDimensions();
 
@@ -97,7 +95,7 @@ function Row(props: { row: any, columns: Column[], expandAll: boolean,index:numb
                             <IconButton aria-label="expand row" size="small" onClick={() => setOpen(!open)}>
                                 {open ? <ArrowDropDownIcon /> : <ArrowRightIcon />}
                             </IconButton>
-                        ) : (index+1)
+                        ) : ((page-1)*rowsPerPage + (index+1))
                     }
                 </TableCell>
                 {columns.map((column,i) => {
@@ -154,7 +152,18 @@ const doesSearchValueExists = (row:any, searchValue:string) => {
 }
 
 export default function GroupByTable(props:any) {
-    const { isGroupingEnabled: isDisplayGroupingEnabled, isColumnSearchEnabled, list, selectedExportFunctionalities, selectedColumns, listColumnsWithType } = props
+    const { 
+        isGroupingEnabled: isDisplayGroupingEnabled, 
+        isColumnSearchEnabled, 
+        list, 
+        selectedExportFunctionalities, 
+        selectedColumns, 
+        listColumnsWithType,
+        isPagingEnabled,
+        headerBackgroundColor,
+        headerTextColor,
+        pagingPosition
+    } = props
     const [rows, setRows] = useState<any[]>([]);
     const [unfilteredRows, setUnfilteredRows] = useState<any[]>([]);
     const [columns, setColumns] = useState<Column[]>([])
@@ -173,23 +182,39 @@ export default function GroupByTable(props:any) {
     const [displaySearchFields, setDisplaySearchFields] = useState(true);
     const [users, setUsers] = useState({});
 
+    const splitByInterval = (stringToSplit,length) => {
+        let stringLength = stringToSplit.length
+        var splittedString = ""
+        let index = 0
+        while(index <= stringLength){
+            splittedString += `${stringToSplit.substr(index,length)} `
+            index += length
+        }
+        return splittedString
+    }
+
     const exportPDF = (rows: any[]) => {
         if (jsPDF !== null) {
-            let columnsArr = columns.map(column => column.id);
             let content = {
                 startY: 20,
-                head: [columnsArr],
+                head: [columns.map(column => column.label)],
                 body: rows.map(row => {
                     let arrToReturn = []
-                    columnsArr.forEach(head => {
-                        arrToReturn.push(row[head])
+                    columns.map(column => column.id).forEach(head => {
+                        let data = row[head] ? row[head] : ""
+                        let spacing = data.toString().split(" ").length
+                        if(data.toString().length > 20 && spacing < 3){
+                            arrToReturn.push(splitByInterval(data.toString(), 15))
+                        }else{
+                            arrToReturn.push(row[head])
+                        }
                     })
                     return arrToReturn
                 })
             }
             const doc = new jsPDF("landscape", "pt", "A4");
             doc.setFontSize(15);
-            doc.text("Orders Data", 40, 40);
+            doc.text("Data-table", 40, 40);
             doc.autoTable(content);
             doc.save("Data-table.pdf");
         } else {
@@ -241,9 +266,6 @@ export default function GroupByTable(props:any) {
     useEffect(() => {
         setRows((prev) => {
             return unfilteredRows.map((row,i) => {
-                if(i<10){
-                    console.log(row);
-                }
                 let objectToReturn = {}
                 selectedColumns.forEach(column => {
                     let index = listColumnsWithType.findIndex((listColumn) => {
@@ -255,6 +277,9 @@ export default function GroupByTable(props:any) {
                     else if (listColumnsWithType[index] && listColumnsWithType[index].type === "IMAGE") {
                         let image = JSON.parse(row[column])
                         objectToReturn[column] = !!image ? (image.serverUrl + image.serverRelativeUrl) : ""
+                    }
+                    else if (listColumnsWithType[index] && listColumnsWithType[index].type === "URL") {
+                        objectToReturn[column] = row[column].Url
                     }
                     else if (!!row[column]) {
                         objectToReturn[column] = row[column].toString()
@@ -317,6 +342,44 @@ export default function GroupByTable(props:any) {
         setColumnsForMapping(columns);
         }
     }, [groupByHeaders,columns])
+
+    if(!list){
+        return (
+            <Card
+                style={{
+                    minWidth:300,
+                    margin:"20px auto"
+                }}
+            >
+                <CardContent>
+                    <Typography style={{
+                        textAlign:"center"
+                    }}  variant="h5" component="h2">
+                        Please Select a list from the Property Pane
+                    </Typography>
+                </CardContent>
+            </Card>
+        )
+    }
+
+    if(!selectedColumns || selectedColumns.length === 0){
+        return (
+            <Card
+                style={{
+                    minWidth: 300,
+                    margin: "20px auto"
+                }}
+            >
+                <CardContent>
+                    <Typography style={{
+                        textAlign: "center"
+                    }} variant="h5" component="h2">
+                        Please Select Columns from the Property Pane
+                    </Typography>
+                </CardContent>
+            </Card>
+        )
+    }
 
     return (
             <Paper>
@@ -390,18 +453,6 @@ export default function GroupByTable(props:any) {
                             label="Expand"
                         />
                     </div>
-
-                    <Pagination
-                        style={{
-                            display: width < 800 ? "none" : ""
-                        }}
-                        page={page}
-                        count={Math.ceil((rowsAfterFiltered.length) / rowsPerPage)}
-                        onChange={(e, p) => setPage(p)}
-                        variant="text"
-                        color="primary"
-                        shape="rounded"
-                    />
                     {
                     selectedExportFunctionalities.length ? (
                         <>
@@ -476,21 +527,31 @@ export default function GroupByTable(props:any) {
                     ) : ""
                     }
                 </div>
-                <Pagination
-                    style={{
-                        display: width > 800 ? "none" : "block",
-                        padding: "10px",
-                        margin:"0 auto"
-                    }}
-                    page={page}
-                    count={Math.ceil((rowsAfterFiltered.length) / rowsPerPage)}
-                    onChange={(e, p) => setPage(p)}
-                    variant="text"
-                    color="primary"
-                    shape="rounded"
-                    siblingCount={1} 
-                    size={"small"}
-                />                
+                {
+                isPagingEnabled && pagingPosition && pagingPosition.startsWith("top") ? (
+                    <div
+                        style={{
+                            display:"flex",
+                            flexDirection: "row",
+                            justifyContent:pagingPosition === "top-left" ? "flex-start" :"flex-end",
+                        }}
+                    >
+                        <Pagination
+                            style={{
+                                padding: "10px",
+                            }}
+                            page={page}
+                            count={Math.ceil((rowsAfterFiltered.length) / rowsPerPage)}
+                            onChange={(e, p) => setPage(p)}
+                            variant="text"
+                            color="primary"
+                            shape="rounded"
+                            siblingCount={1}
+                            size={"small"}
+                        />
+                    </div>
+                    ) : ""
+                }  
                 <TableContainer 
                     style={{
                         overflowY:"hidden",
@@ -498,7 +559,8 @@ export default function GroupByTable(props:any) {
                 >
                 <Table aria-label="Data table" ref={tableRef} style={{ borderCollapse:"collapse",tableLayout: "fixed" }} >
                         <TableHead style={{
-                        border: "1px solid #dddddd"
+                        border: "1px solid #dddddd",
+                        backgroundColor:headerBackgroundColor || "#fff"
                         }} >
                             <TableRow >
                                 <TableCell
@@ -521,7 +583,8 @@ export default function GroupByTable(props:any) {
                                                     align={"center"}
                                                     style={{
                                                         border: "1px solid #dddddd",
-                                                        width: isGroupingEnabled ? "100px" : undefined
+                                                        width: isGroupingEnabled ? "100px" : undefined,
+                                                        color:headerTextColor || "#000"
                                                     }}
                                                 >
                                                     {column.label}
@@ -573,7 +636,7 @@ export default function GroupByTable(props:any) {
                                             {
                                                 rowsAfterFiltered.slice((page - 1) * rowsPerPage, page * rowsPerPage).map(
                                                     (row, i) =>
-                                                        <Row row={row} key={i} index={i} columns={columnsForMapping} expandAll={expandAll} />
+                                                        <Row row={row} key={i} index={i} columns={columnsForMapping} expandAll={expandAll} rowsPerPage={rowsPerPage} page={page} />
                                                 )
                                             }
                                         </>
@@ -587,6 +650,31 @@ export default function GroupByTable(props:any) {
                         </TableBody>
                     </Table>
                 </TableContainer>
+            {
+                isPagingEnabled && pagingPosition && pagingPosition.startsWith("bottom") ? (
+                    <div
+                        style={{
+                            display: "flex",
+                            flexDirection:"row",
+                            justifyContent: pagingPosition === "bottom-left" ? "flex-start" : "flex-end",
+                        }}
+                    >
+                        <Pagination
+                            style={{
+                                padding: "10px",
+                            }}
+                            page={page}
+                            count={Math.ceil((rowsAfterFiltered.length) / rowsPerPage)}
+                            onChange={(e, p) => setPage(p)}
+                            variant="text"
+                            color="primary"
+                            shape="rounded"
+                            siblingCount={1}
+                            size={"small"}
+                        />
+                    </div>
+                ) : ""
+            }
             </Paper>
     );
 }
