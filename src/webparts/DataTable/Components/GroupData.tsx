@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Accordion, AccordionDetails, AccordionSummary, Collapse, IconButton, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@material-ui/core'
-import ExpandMoreIcon from '@material-ui/icons/ExpandMore';
+import { Collapse, IconButton, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@material-ui/core'
 import ArrowRightIcon from '@material-ui/icons/ArrowRight';
 import ArrowDropDownIcon from '@material-ui/icons/ArrowDropDown';
 
@@ -30,24 +29,6 @@ const RenderAccordian = (props:RenderAccordianProps) => {
 
     return (
         <>
-            {/* <Accordion expanded={openAccordian} onChange={() => setOpenAccordian(prev => !prev)} >
-                <AccordionSummary
-                    expandIcon={<ExpandMoreIcon />}
-                    aria-controls={`Panel-header-${item}`}
-                    id={"panel-header" + item}
-                >
-                    <Typography ><span style={{ color: "#009be5", fontWeight: 900 }} > {columns[index].label}: </span> {"  "}{!!columns[index].render ? columns[index].render(item, columns[index].secondParameter) : item}</Typography>
-                </AccordionSummary>
-                <AccordionDetails>
-                    <div
-                        style={{
-                            width: "100%"
-                        }}
-                    >
-                        <GroupData data={data[item]} columns={columns} index={index + 1} isExpandAllEnabled={isExpandAllEnabled} />
-                    </div>
-                </AccordionDetails>
-            </Accordion> */}
             <div
                 style={{
                     boxSizing:"border-box",
@@ -83,8 +64,8 @@ const RenderAccordian = (props:RenderAccordianProps) => {
                         style={{
                             margin: "5px"
                         }}
-                    ><span style={{ color: "#009be5", fontWeight: 900 }} > {columns[index].label}: </span> {"  "}{!!columns[index].render ? columns[index].render(item, columns[index].secondParameter) : item}</Typography>
-
+                    >
+                        <span style={{ color: "#009be5", fontWeight: 900 }} > {columns[index].label}: </span> {"  "}{!!columns[index].render ? columns[index].render(item, columns[index].secondParameter) : item}</Typography>
                 </div>
                 <Collapse in={openAccordian} component="div" >
                     <div
@@ -122,8 +103,8 @@ function GroupData( props:Props ) {
                     </TableRow>
                 </TableHead>
                 <TableBody>
-                    {data.map((row) => (
-                        <TableRow key={row.orderId}>
+                    {data.map((row,i) => (
+                        <TableRow key={i}>
                             {
                                 columns.map((column:any) => (
                                     <TableCell align="center" component="th" scope="row">

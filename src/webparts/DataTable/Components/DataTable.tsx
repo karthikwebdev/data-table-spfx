@@ -22,16 +22,33 @@ import MoreVertIcon from '@material-ui/icons/MoreVert'
 import ReactToPrint from 'react-to-print';
 import { Web } from "sp-pnp-js";
 import exportFromJSON from 'export-from-json';
+import DoneIcon from '@material-ui/icons/Done';
+import ClearIcon from '@material-ui/icons/Clear';
+import BrokenImageIcon from '@material-ui/icons/BrokenImage';
 import "./style.css";
 import moment from 'moment';
 const { jsPDF } = require('jspdf');
+let isImageUrl:any = require("is-image-url");
 require('jspdf-autotable');
 
 const renderMethods = {
-    "DATE": (value) => value ? moment(value).format("MM/DD/YYYY") : undefined,
+    "DATE": (value) => value ? moment(value).format("MM/DD/YYYY hh:mm:ss") : undefined,
     "CURRENCY": (value) => value ? <span style={{ color: "#009BE5" }}>${value} </span> : undefined,
-    "USER": (value) => value ? <Chip avatar={<Avatar>{value.toString()[0]}</Avatar>} label={value} /> : "",
-    "TRUNCATED-TEXT": (value) => value ? typeof value === "string" && value.length > 40 ? <TruncatedText text={value} /> : value : undefined
+    "USER": (value) => value ? <Chip avatar={<Avatar>{value.toString()[0]}</Avatar>} size="small" label={value} /> : "",
+    "TRUNCATED-TEXT": (value) => value ? 
+                                isImageUrl(value) ? 
+                                    <Avatar src={value} /> 
+                                    : typeof value === "string" && value.length > 40 ? 
+                                        <TruncatedText text={value} /> 
+                                        : value
+                                : undefined,
+    "NORMAL": (value) => value ? isImageUrl(value) ? <Avatar src={value} /> : typeof value === "string" && value.length > 40 ? <TruncatedText text={value} /> : value : undefined,
+    "IMAGE": (value) => value 
+                            ? isImageUrl(value) 
+                                ? <Avatar src={value} style={{margin:"0 auto",textAlign:"center"}} /> 
+                                : <Avatar> <BrokenImageIcon/> </Avatar> 
+                            : "",
+    "BOOLEAN":(value) => value ? <DoneIcon /> : <ClearIcon />
 }
 
 interface Column {
@@ -76,7 +93,7 @@ function Row(props: { row: any, columns: Column[], expandAll: boolean,index:numb
                     }}  
                 >
                     {
-                        columns.length*200 > width ? (
+                        columns.length*250 > width ? (
                             <IconButton aria-label="expand row" size="small" onClick={() => setOpen(!open)}>
                                 {open ? <ArrowDropDownIcon /> : <ArrowRightIcon />}
                             </IconButton>
@@ -86,7 +103,7 @@ function Row(props: { row: any, columns: Column[], expandAll: boolean,index:numb
                 {columns.map((column,i) => {
                     const value = row[column.id];
                     return (
-                        (i+1)*200 < width ?
+                        (i+1)*250 < width ?
                         <TableCell key={column.id} align={"center"}
                             style={{
                                 border: "1px solid #dddddd",
@@ -107,14 +124,14 @@ function Row(props: { row: any, columns: Column[], expandAll: boolean,index:numb
                                     {columns.map((column,i) => {
                                         const value = row[column.id];
                                         return (
-                                            (i+1)*200 >= width ? (
+                                            (i+1)*250 >= width ? (
                                                 <TableRow key={column.id} >
                                                     <TableCell>
                                                         {column.label}
                                                     </TableCell>
                                                     <TableCell align={"left"}>
                                                         {
-                                                            typeof value === "string" && value.length > 40 ? <TruncatedText text={value} /> : !!column.render ? column.render(value, column.secondParameter ? column.secondParameter : undefined) : value
+                                                            !!column.render ? column.render(value, column.secondParameter ? column.secondParameter : undefined) : typeof value === "string" && value.length > 40 ? <TruncatedText text={value} /> : value
                                                         }
                                                     </TableCell>
                                                 </TableRow>
@@ -176,7 +193,6 @@ export default function GroupByTable(props:any) {
             doc.autoTable(content);
             doc.save("Data-table.pdf");
         } else {
-            console.log("its null yaar")
         }
     }
 
@@ -199,24 +215,7 @@ export default function GroupByTable(props:any) {
         }
     }
 
-    const getListItems = async (list) => {
-        try {
-            let web = new Web(props.context.pageContext.web.absoluteUrl);
-            let dataList = await web.lists.getById(list).fields.get()
-            dataList.forEach(field => {
-                if (!field.Hidden && field["odata.type"] != "SP.FieldComputed" && !field.ReadOnlyField) {
-                    console.log(field);
-                    console.log(field.InternalName);
-                } 
-            });
-        } catch (error) {
-            console.log(error);
-            return error 
-        }
-    }
-
     useEffect(() => {
-        console.log(listColumnsWithType)
         getUsers().then(data => {
             if(data && data.value){
                 let json = {}
@@ -233,7 +232,6 @@ export default function GroupByTable(props:any) {
     useEffect(() => {
         let web = new Web(props.context.pageContext.web.absoluteUrl);
         web.lists.getById(list).items.top(1000).get().then(data => {
-            console.log(data);
             setUnfilteredRows(data);
         }).catch(err => {
             console.log(err);
@@ -242,11 +240,24 @@ export default function GroupByTable(props:any) {
 
     useEffect(() => {
         setRows((prev) => {
-            return unfilteredRows.map(row => {
+            return unfilteredRows.map((row,i) => {
+                if(i<10){
+                    console.log(row);
+                }
                 let objectToReturn = {}
                 selectedColumns.forEach(column => {
-                    if(!!row[column]){
-                        objectToReturn[column] = row[column]
+                    let index = listColumnsWithType.findIndex((listColumn) => {
+                        return listColumn.id === column
+                    })
+                    if (listColumnsWithType[index] && listColumnsWithType[index].type === "USER"){
+                        objectToReturn[column] = users[row[column+"StringId"]]
+                    }
+                    else if (listColumnsWithType[index] && listColumnsWithType[index].type === "IMAGE") {
+                        let image = JSON.parse(row[column])
+                        objectToReturn[column] = !!image ? (image.serverUrl + image.serverRelativeUrl) : ""
+                    }
+                    else if (!!row[column]) {
+                        objectToReturn[column] = row[column].toString()
                     }
                 });
                 return objectToReturn
@@ -254,7 +265,7 @@ export default function GroupByTable(props:any) {
         })
         setColumns(prev => {
             let finalColumnsArr = []
-            if (listColumnsWithType){
+            if (listColumnsWithType) {
                 listColumnsWithType.forEach((column) => {
                     if (selectedColumns.includes(column.id)) {
                         finalColumnsArr.push({
@@ -266,7 +277,7 @@ export default function GroupByTable(props:any) {
             }
             return finalColumnsArr
         })
-    }, [unfilteredRows, selectedColumns,listColumnsWithType])
+    }, [unfilteredRows,users,selectedColumns,listColumnsWithType])
 
     useEffect(() => {
         setPage(1)
@@ -503,7 +514,7 @@ export default function GroupByTable(props:any) {
                                 {columnsForMapping.map((column, i) => (
                                     <>
                                         {
-                                            (i + 1) * 200 < width || isGroupingEnabled ? (
+                                            (i + 1) * 250 < width || isGroupingEnabled ? (
                                                 <>
                                                 <TableCell
                                                     key={column.id}

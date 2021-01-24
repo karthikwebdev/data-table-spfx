@@ -41,7 +41,7 @@ function TruncatedText({ text }:Props) {
         }}
       onClick={() => setIsTextOpen(prev => !prev)}
       >
-        ...Read {isTextOpen ? "Less" : "More"}
+        {" "} ... {" "}Read {isTextOpen ? "Less" : "More"}
       </span>
     </BootstrapTooltip>
   </span>;

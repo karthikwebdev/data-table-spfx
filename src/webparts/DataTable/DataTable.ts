@@ -45,6 +45,7 @@ export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListIt
 
   protected async onPropertyPaneFieldChanged(path,oldValue,newValue) {
     if(path === "list" && (oldValue !== newValue)){
+      console.log("API CALL")
       let web = new Web(this.context.pageContext.web.absoluteUrl);
       let columnsOfList = await web.lists.getById(newValue).fields.get()
       let finalColumnstoSelect = []
@@ -58,51 +59,50 @@ export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListIt
             ) || 
             (!field.Hidden && field["odata.type"] != "SP.FieldComputed" && !field.ReadOnlyField)
           ) {
-          console.log(field);
-          console.log(field.InternalName);
           finalColumnstoSelect.push({ key: field.InternalName, text:field.Title })
-        }
-        if (field["odata.type"] === "SP.FieldDateTime") {
-          allColumns.push({
-            id: field.InternalName,
-            label: field.Title,
-            type: "DATE",
-          })
-        } else if (field["odata.type"] === "SP.FieldCurrency") {
-          allColumns.push({
-            id: field.InternalName,
-            label: field.Title,
-            type: "CURRENCY"
-          })
-        } else if (field["odata.type"] === "SP.FieldMultiLineText" || field["odata.type"] === "SP.FieldText") {
-          allColumns.push({
-            id: field.InternalName,
-            label: field.Title,
-            type: "TRUNCATED-TEXT"
-          })
-        }  
-        else if (field["odata.type"] === "SP.FieldMultiLineText" || field["TypeAsString"] === "Thumbnail") {
-          allColumns.push({
-            id: field.InternalName,
-            label: field.Title,
-            type: "IMAGE"
-          })
-        } else if (field["odata.type"] === "SP.FieldUser") {
-          allColumns.push({
-            id: field.InternalName,
-            label: field.Title,
-            type: "USER"
-          })
-        }
-        else {
-          allColumns.push({
-            id: field.InternalName,
-            label: field.Title,
-          })
+          if (field["odata.type"] === "SP.FieldDateTime") {
+            allColumns.push({
+              id: field.InternalName,
+              label: field.Title,
+              type: "DATE",
+            })
+          } else if (field["odata.type"] === "SP.FieldCurrency") {
+            allColumns.push({
+              id: field.InternalName,
+              label: field.Title,
+              type: "CURRENCY"
+            })
+          } else if (field["odata.type"] === "SP.FieldMultiLineText" || field["odata.type"] === "SP.FieldText") {
+            allColumns.push({
+              id: field.InternalName,
+              label: field.Title,
+              type: "TRUNCATED-TEXT"
+            })
+          }
+          else if (field["odata.type"] === "SP.FieldMultiLineText" || field["TypeAsString"] === "Thumbnail") {
+            allColumns.push({
+              id: field.InternalName,
+              label: field.Title,
+              type: "IMAGE"
+            })
+          } else if (field["odata.type"] === "SP.FieldUser") {
+            allColumns.push({
+              id: field.InternalName,
+              label: field.Title,
+              type: "USER"
+            })
+          }
+          else {
+            allColumns.push({
+              id: field.InternalName,
+              label: field.Title,
+            })
+          }
         }
       })
       this.listColumns = finalColumnstoSelect;
       this.properties.listColumnsWithType = allColumns
+      this.properties.selectedColumns = []
       this.context.propertyPane.refresh();
       this.render();
     }
@@ -123,8 +123,6 @@ export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListIt
       ) ||
         (!field.Hidden && field["odata.type"] != "SP.FieldComputed" && !field.ReadOnlyField)
       ) {
-        console.log(field);
-        console.log(field.InternalName);
         finalColumnstoSelect.push({ key: field.InternalName, text: field.Title })
         if (field["odata.type"] === "SP.FieldDateTime"){
           allColumns.push({
@@ -139,7 +137,7 @@ export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListIt
             label: field.Title,
             type:"CURRENCY"
           })
-        } else if (field["odata.type"] === "SP.FieldMultiLineText" || field["TypeAsString"] === "Thumbnail"){
+        } else if (field["odata.type"] === "SP.FieldMultiLineText" && field["TypeAsString"] === "Thumbnail"){
           allColumns.push({
             id: field.InternalName,
             label: field.Title,
@@ -152,10 +150,18 @@ export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListIt
             type: "USER"
           })
         }
+        else if (field["odata.type"] === "SP.Field" && field["TypeAsString"] === "Boolean"){
+          allColumns.push({
+            id: field.InternalName,
+            label: field.Title,
+            type: "BOOLEAN"
+          })
+        }
         else {
           allColumns.push({
             id: field.InternalName,
             label: field.Title,
+            type:"NORMAL"
           })
         }
       }
