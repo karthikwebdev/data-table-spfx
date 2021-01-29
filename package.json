@@ -36,10 +36,7 @@
     "moment": "^2.29.1",
     "office-ui-fabric-react": "6.189.2",
     "react": "16.8.5",
-    "react-csv": "^2.0.3",
     "react-dom": "16.8.5",
-    "react-json-to-csv": "^1.0.4",
-    "react-to-pdf": "0.0.13",
     "react-to-print": "^2.12.2",
     "sp-pnp-js": "^3.0.10",
     "unique-names-generator": "^4.3.1"
