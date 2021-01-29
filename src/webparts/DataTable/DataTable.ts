@@ -12,11 +12,10 @@ import { BaseClientSideWebPart } from '@microsoft/sp-webpart-base';
 import { PropertyFieldColorPicker, PropertyFieldColorPickerStyle } from '@pnp/spfx-property-controls/lib/PropertyFieldColorPicker';
 import { PropertyFieldMultiSelect } from '@pnp/spfx-property-controls/lib/PropertyFieldMultiSelect';
 import { PropertyFieldListPicker, PropertyFieldListPickerOrderBy } from '@pnp/spfx-property-controls/lib/PropertyFieldListPicker';
-import moment from 'moment';
 import * as strings from 'ListItemsHooksWebPartStrings';
 import DataTable from './Components/DataTable';
 
-export interface IListItemsHooksWebPartProps {
+export interface IDataTableMainProps {
   list: string;
   isGroupingEnabled:boolean;
   isColumnSearchEnabled:boolean;
@@ -30,7 +29,7 @@ export interface IListItemsHooksWebPartProps {
   pagingPosition:string;
 }
 
-export default class ListItemsHooksWebPart extends BaseClientSideWebPart<IListItemsHooksWebPartProps> {
+export default class DataTableMain extends BaseClientSideWebPart<IDataTableMainProps> {
   private listColumns: IPropertyPaneDropdownOption[];
   public render(): void {
     const element: React.ReactElement = React.createElement(

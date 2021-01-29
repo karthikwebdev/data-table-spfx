@@ -25,7 +25,7 @@ import exportFromJSON from 'export-from-json';
 import DoneIcon from '@material-ui/icons/Done';
 import ClearIcon from '@material-ui/icons/Clear';
 import BrokenImageIcon from '@material-ui/icons/BrokenImage';
-import "./style.css";
+import FilterListIcon from '@material-ui/icons/FilterList';
 import moment from 'moment';
 const { jsPDF } = require('jspdf');
 let isImageUrl:any = require("is-image-url");
@@ -151,6 +151,74 @@ const doesSearchValueExists = (row:any, searchValue:string) => {
     return rowItems.some(e => !!(typeof e === "string" && e.match(regex)))       
 }
 
+const splitByInterval = (stringToSplit, length) => {
+    let stringLength = stringToSplit.length
+    var splittedString = ""
+    let index = 0
+    while (index <= stringLength) {
+        splittedString += `${stringToSplit.substr(index, length)} `
+        index += length
+    }
+    return splittedString
+}
+
+const getArrayFromGroupedData = (rows,index,columns) => {
+    if(Array.isArray(rows)){
+        return [...rows.map(row => {
+            let arrToReturn = []
+            columns.forEach((head,i) => {
+                if(!(i < index)){
+                    let data = row[head.id] ? row[head.id] : ""
+                    let spacing = data.toString().split(" ").length
+                    if (head.type === "DATE") {
+                        arrToReturn.push(row[head.id] ? moment(row[head.id]).format("MM/DD/YYYY hh:mm:ss a") : "")
+                    } else if (data.toString().length > 20 && spacing < 3) {
+                        arrToReturn.push(splitByInterval(data.toString(), 15))
+                    } else {
+                        arrToReturn.push(row[head.id])
+                    }
+                } else {
+                    arrToReturn.push("")
+                }
+            })
+            return arrToReturn
+        }),[]]
+    }else {
+        let arrToReturn = []
+        Object.keys(rows).forEach(row =>{
+            console.log(row);
+            let newArr = []
+            newArr[index] = row 
+            arrToReturn = [...arrToReturn,newArr,...getArrayFromGroupedData(rows[row],index+1,columns)]
+        })
+        return arrToReturn
+    }
+}
+
+
+const getRowsForPdf = (rows,isGroupingEnabled:boolean,columns) => {
+    if(!isGroupingEnabled){
+        return rows.map(row => {
+            let arrToReturn = []
+            columns.forEach(head => {
+                let data = row[head.id] ? row[head.id] : ""
+                let spacing = data.toString().split(" ").length
+                if (head.type === "DATE"){
+                    arrToReturn.push(row[head.id] ? moment(row[head.id]).format("MM/DD/YYYY hh:mm:ss a") : "")
+                }
+                else if (data.toString().length > 20 && spacing < 3) {
+                    arrToReturn.push(splitByInterval(data.toString(), 15))
+                } else {
+                    arrToReturn.push(row[head.id])
+                }
+            })
+            return arrToReturn
+        })
+    } else {
+        return [...getArrayFromGroupedData(rows,0,columns)]
+    }
+}
+
 export default function GroupByTable(props:any) {
     const { 
         isGroupingEnabled: isDisplayGroupingEnabled, 
@@ -182,35 +250,20 @@ export default function GroupByTable(props:any) {
     const [displaySearchFields, setDisplaySearchFields] = useState(true);
     const [users, setUsers] = useState({});
 
-    const splitByInterval = (stringToSplit,length) => {
-        let stringLength = stringToSplit.length
-        var splittedString = ""
-        let index = 0
-        while(index <= stringLength){
-            splittedString += `${stringToSplit.substr(index,length)} `
-            index += length
-        }
-        return splittedString
-    }
-
     const exportPDF = (rows: any[]) => {
         if (jsPDF !== null) {
             let content = {
                 startY: 20,
-                head: [columns.map(column => column.label)],
-                body: rows.map(row => {
-                    let arrToReturn = []
-                    columns.map(column => column.id).forEach(head => {
-                        let data = row[head] ? row[head] : ""
-                        let spacing = data.toString().split(" ").length
-                        if(data.toString().length > 20 && spacing < 3){
-                            arrToReturn.push(splitByInterval(data.toString(), 15))
-                        }else{
-                            arrToReturn.push(row[head])
-                        }
-                    })
-                    return arrToReturn
-                })
+                theme:"grid",
+                head: [isGroupingEnabled ? columnsForMapping.map(column => column.label) : columns.map(column => column.label)],
+                body: getRowsForPdf(rows, isGroupingEnabled,isGroupingEnabled ? columnsForMapping : columns),
+                createdCell:(cell) => {
+                    console.log(cell);
+                    console.log(cell.row.raw);
+                    if(!cell.row.raw.length){
+                        cell.cell.styles.fillColor = [191, 181, 179];
+                    }
+                }
             }
             const doc = new jsPDF("landscape", "pt", "A4");
             doc.setFontSize(15);
@@ -218,6 +271,7 @@ export default function GroupByTable(props:any) {
             doc.autoTable(content);
             doc.save("Data-table.pdf");
         } else {
+            console.log("hell yaaa!");
         }
     }
 
@@ -362,7 +416,7 @@ export default function GroupByTable(props:any) {
         )
     }
 
-    if(!selectedColumns || selectedColumns.length === 0){
+    if(!selectedColumns || selectedColumns.length < 2){
         return (
             <Card
                 style={{
@@ -374,7 +428,7 @@ export default function GroupByTable(props:any) {
                     <Typography style={{
                         textAlign: "center"
                     }} variant="h5" component="h2">
-                        Please Select Columns from the Property Pane
+                        Please Select atleast 2 Columns from the Property Pane
                     </Typography>
                 </CardContent>
             </Card>
@@ -475,7 +529,7 @@ export default function GroupByTable(props:any) {
                         selectedExportFunctionalities.includes("PDF") ? (
                             <MenuItem
                                 onClick={() => {
-                                    exportPDF(rowsAfterFiltered);
+                                                exportPDF(isGroupingEnabled ? rowsAfterGrouped : rowsAfterFiltered.slice((page - 1) * rowsPerPage, page * rowsPerPage));
                                 }}
                             >
                                 Export PDF
@@ -552,11 +606,7 @@ export default function GroupByTable(props:any) {
                     </div>
                     ) : ""
                 }  
-                <TableContainer 
-                    style={{
-                        overflowY:"hidden",
-                    }}
-                >
+                <TableContainer >
                 <Table aria-label="Data table" ref={tableRef} style={{ borderCollapse:"collapse",tableLayout: "fixed" }} >
                         <TableHead style={{
                         border: "1px solid #dddddd",
@@ -566,10 +616,10 @@ export default function GroupByTable(props:any) {
                                 <TableCell
                                     align={"left"}
                                     className="fixedWidth"
-                                style={{
-                                    border: "1px solid #dddddd",
-                                    width:isGroupingEnabled ? groupByHeaders.length * 5 : "20px"
-                                }}
+                                    style={{
+                                        border: "1px solid #dddddd",
+                                        width:isGroupingEnabled ? groupByHeaders.length * 5 : "20px"
+                                    }}
                                 >
                                     #
                                 </TableCell>
@@ -588,21 +638,6 @@ export default function GroupByTable(props:any) {
                                                     }}
                                                 >
                                                     {column.label}
-                                                    {
-                                                        displaySearchFields && isColumnSearchEnabled ? (
-                                                            <InputBase style={{
-                                                                border: "1px solid #dddddd",
-                                                                borderRadius: "5px"
-                                                            }} margin="dense" value={searchObject[column.id]} onChange={(e) => {
-                                                                e.persist();
-                                                                if (e.target && e.target.value) {
-                                                                    setSearchObject((prev: any) => ({ ...prev, [column.id]: e.target.value }))
-                                                                } else {
-                                                                    setSearchObject((prev: any) => ({ ...prev, [column.id]: "" }))
-                                                                }
-                                                            }} />
-                                                        ) : "" 
-                                                    }
                                                 </TableCell>
                                                 </>
                                             ) : ""
@@ -624,12 +659,57 @@ export default function GroupByTable(props:any) {
                                     </TableCell>
                                     ) : ""
                                 }
-                                <>
-                                </>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             <>
+                            {
+                                displaySearchFields && isColumnSearchEnabled ? (
+                                    <TableRow>
+                                        <TableCell>
+                                            {" "}
+                                        </TableCell>
+                                        {
+                                            columnsForMapping.map((column, i) => (
+                                                <>
+                                                {
+                                                        (i + 1) * 250 < width || isGroupingEnabled ? (
+                                                            <TableCell
+                                                                style={{
+                                                                    border: "1px solid #dddddd",
+                                                                }}
+                                                            >
+                                                                <div
+                                                                    style={{
+                                                                        display: "flex",
+                                                                        alignItems: "center",
+                                                                        justifyContent: "center",
+                                                                        flexDirection: "row"
+                                                                    }}
+                                                                >
+                                                                    <FilterListIcon />
+                                                                    <InputBase style={{
+                                                                        border: "2px solid #dddddd",
+                                                                        borderRadius: "5px"
+                                                                    }} margin="dense" value={searchObject[column.id]} onChange={(e) => {
+                                                                        e.persist();
+                                                                        if (e.target && e.target.value) {
+                                                                            setSearchObject((prev: any) => ({ ...prev, [column.id]: e.target.value }))
+                                                                        } else {
+                                                                            setSearchObject((prev: any) => ({ ...prev, [column.id]: "" }))
+                                                                        }
+                                                                    }}
+                                                                    />
+                                                                </div>
+                                                            </TableCell>
+                                                        ) : ""
+                                                }
+                                                </>
+                                            ))
+                                        }
+                                    </TableRow>
+                                ) : ""
+                            }
                                 {
                                     !isGroupingEnabled ? (
                                         <>
