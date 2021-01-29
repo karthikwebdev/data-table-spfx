@@ -23,6 +23,7 @@
       "headerTextColor":"#000",
       "selectedExportFunctionalities":[],
       "selectedColumns":[],
+      "heading":"",
       "listColumnsWithType":[{
         "id":"Title",
         "label":"Title"

@@ -6,6 +6,7 @@ import {
   IPropertyPaneDropdownOption,
   PropertyPaneToggle,
   PropertyPaneDropdown,
+  PropertyPaneTextField,
 } from '@microsoft/sp-property-pane';
 import { Web } from "sp-pnp-js";
 import { BaseClientSideWebPart } from '@microsoft/sp-webpart-base';
@@ -27,6 +28,7 @@ export interface IDataTableMainProps {
   headerBackgroundColor:string;
   headerTextColor:string;
   pagingPosition:string;
+  heading:string;
 }
 
 export default class DataTableMain extends BaseClientSideWebPart<IDataTableMainProps> {
@@ -45,6 +47,7 @@ export default class DataTableMain extends BaseClientSideWebPart<IDataTableMainP
         headerBackgroundColor:this.properties.headerBackgroundColor,
         headerTextColor:this.properties.headerTextColor,
         pagingPosition:this.properties.pagingPosition,
+        heading:this.properties.heading,
         context: this.context,
       }
     );
@@ -220,6 +223,9 @@ export default class DataTableMain extends BaseClientSideWebPart<IDataTableMainP
             {
               groupName: strings.BasicGroupName,
               groupFields: [
+                PropertyPaneTextField('heading', {
+                  label: strings.headingLabel,
+                }),
                 PropertyFieldListPicker('list', {
                   label: 'Select a list',
                   selectedList: this.properties.list,
@@ -303,7 +309,7 @@ export default class DataTableMain extends BaseClientSideWebPart<IDataTableMainP
                   isHidden: false,
                   alphaSliderHidden: false,
                   style: PropertyFieldColorPickerStyle.Inline,
-                  key: 'headerBackgroundColorFieldId'
+                  key: 'headerColorFieldId'
                 })
               ]
             }

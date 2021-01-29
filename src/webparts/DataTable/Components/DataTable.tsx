@@ -230,7 +230,8 @@ export default function GroupByTable(props:any) {
         isPagingEnabled,
         headerBackgroundColor,
         headerTextColor,
-        pagingPosition
+        pagingPosition,
+        heading
     } = props
     const [rows, setRows] = useState<any[]>([]);
     const [unfilteredRows, setUnfilteredRows] = useState<any[]>([]);
@@ -310,7 +311,7 @@ export default function GroupByTable(props:any) {
 
     useEffect(() => {
         let web = new Web(props.context.pageContext.web.absoluteUrl);
-        web.lists.getById(list).items.top(1000).get().then(data => {
+        web.lists.getById(list).items.get().then(data => {
             setUnfilteredRows(data);
         }).catch(err => {
             console.log(err);
@@ -437,6 +438,15 @@ export default function GroupByTable(props:any) {
 
     return (
             <Paper>
+                <Typography
+                    variant="h4"
+                    component="h1"
+                    align="center"
+                >
+                    {
+                        heading
+                    }
+                </Typography>
                 {
                     isDisplayGroupingEnabled ? (
                     <div style={{ padding: "20px", display: "flex", flexDirection: width < 700 ? "column" : "row" }}>
@@ -503,7 +513,12 @@ export default function GroupByTable(props:any) {
                             </Select>
                         </FormControl>
                         <FormControlLabel
-                            control={<Switch checked={expandAll} onChange={() => setExpandAll(prev => !prev)} />}
+                        control={<Switch checked={expandAll} id="switch-to-expand" inputProps={{ 'aria-label': 'expand',role:"switch" }} onKeyUp={(e) => {
+                            if (e.keyCode === 13) {
+                                e.preventDefault();
+                                document.getElementById("switch-to-expand").click();
+                            }
+                        }} onChange={() => setExpandAll(prev => !prev)} />}
                             label="Expand"
                         />
                     </div>

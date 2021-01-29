@@ -8,6 +8,7 @@ declare interface IListItemsHooksWebPartStrings {
   headerBackgroundColorLabel:string;
   headerTextColorLabel:string;
   pagingPositionLabel:string;
+  headingLabel:string;
 }
 
 declare module 'ListItemsHooksWebPartStrings' {

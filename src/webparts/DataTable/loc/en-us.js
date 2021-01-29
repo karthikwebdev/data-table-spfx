@@ -10,5 +10,6 @@ define([], function () {
     headerBackgroundColorLabel: "Select Background color for header",
     headerTextColorLabel: "Select Text color for header",
     pagingPositionLabel: "Select Pagination Position",
+    headingLabel: "Type Heading to the Table",
   };
 });
