@@ -66,7 +66,7 @@ const searchByColumn = (rows:any, searchObject:any) => {
                 searchObject[column].toString().split("\\").join(""),
                 "gi"
             );
-            return row[column].toString().match(regex);
+            return row[column] ? row[column].toString().match(regex) : false;
         })
     );
 };
